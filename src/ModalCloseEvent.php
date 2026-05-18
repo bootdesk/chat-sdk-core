@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace BootDesk\ChatSDK\Core;
+
+class ModalCloseEvent
+{
+    public function __construct(
+        public readonly string $callbackId,
+        public readonly Author $user,
+        public readonly mixed $raw = null,
+        public readonly ?string $viewId = null,
+        public readonly ?Channel $relatedChannel = null,
+        public readonly ?Thread $relatedThread = null,
+        public readonly ?Message $relatedMessage = null,
+    ) {}
+}
