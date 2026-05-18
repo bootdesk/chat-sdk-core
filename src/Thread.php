@@ -55,6 +55,16 @@ class Thread
         $this->adapter->startTyping($this->id);
     }
 
+    public function addReaction(string $messageId, string $emoji): void
+    {
+        $this->adapter->addReaction($this->id, $messageId, $emoji);
+    }
+
+    public function removeReaction(string $messageId, string $emoji): void
+    {
+        $this->adapter->removeReaction($this->id, $messageId, $emoji);
+    }
+
     public function postEphemeral(string $userId, string|PostableMessage $message): void
     {
         $postable = $this->normalizePostable($message);

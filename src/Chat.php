@@ -940,6 +940,7 @@ class Chat
                         user: new Author(
                             id: $actionData['userId'],
                             isBot: $actionData['isBot'],
+                            isMe: $actionData['isMe'] ?? false,
                         ),
                         triggerId: $actionData['triggerId'] ?? null,
                         raw: $actionData['raw'] ?? null,
@@ -966,6 +967,7 @@ class Chat
                         user: new Author(
                             id: $slashData['userId'],
                             isBot: $slashData['isBot'],
+                            isMe: $slashData['isMe'] ?? false,
                         ),
                         raw: $slashData['raw'] ?? null,
                         triggerId: $slashData['triggerId'] ?? null,
