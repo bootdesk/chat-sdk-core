@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 interface HandlesStatuses
 {
     /**
-     * @return array{type: 'delivered'|'read', messageIds: string[], threadId: string, userId: string, raw: mixed, timestamp: ?int}|null
+     * @return array{type: 'delivered'|'read'|'failed', messageIds: string[], threadId: string, userId: string, raw: mixed, timestamp: ?int}|null
      */
     public function parseStatus(ServerRequestInterface $request): ?array;
 }

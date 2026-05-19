@@ -472,6 +472,9 @@ $chat->onModalClose(function (ModalCloseEvent $event) {
 - `ModalSubmitEvent`: `callbackId`, `values` (map of actionId → value), `user`, `viewId`, `relatedThread`
 - `ModalCloseEvent`: `callbackId`, `user`, `viewId`, `relatedThread`
 
+## Documentationn
+Full API documentation: https://bootdesk.github.io/chat-sdk
+
 ## License
 
 MIT

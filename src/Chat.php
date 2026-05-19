@@ -111,6 +111,9 @@ class Chat
     /** @var callable[] */
     private array $messageReadHandlers = [];
 
+    /** @var callable[] */
+    private array $messageFailedHandlers = [];
+
     /** @var array<string, int> */
     private array $concurrentSlots = [];
 
@@ -367,6 +370,13 @@ class Chat
     public function onMessageRead(callable $handler): self
     {
         $this->messageReadHandlers[] = $handler;
+
+        return $this;
+    }
+
+    public function onMessageFailed(callable $handler): self
+    {
+        $this->messageFailedHandlers[] = $handler;
 
         return $this;
     }
@@ -691,6 +701,22 @@ class Chat
         $this->dispatchMessageReadHandlers($event);
     }
 
+    public function processMessageFailed(
+        string $threadId,
+        array $messageIds,
+        string $userId,
+        mixed $raw = null,
+    ): void {
+        $event = new MessageFailedEvent(
+            messageIds: $messageIds,
+            threadId: $threadId,
+            userId: $userId,
+            raw: $raw,
+        );
+
+        $this->dispatchMessageFailedHandlers($event);
+    }
+
     public function processMessage(Adapter $adapter, string $threadId, Message $message): void
     {
         // 1. Self-filter
@@ -939,8 +965,8 @@ class Chat
                         messageId: $actionData['messageId'],
                         user: new Author(
                             id: $actionData['userId'],
+                            isMe: $actionData['isMe'],
                             isBot: $actionData['isBot'],
-                            isMe: $actionData['isMe'] ?? false,
                         ),
                         triggerId: $actionData['triggerId'] ?? null,
                         raw: $actionData['raw'] ?? null,
@@ -966,8 +992,8 @@ class Chat
                         text: $slashData['text'],
                         user: new Author(
                             id: $slashData['userId'],
+                            isMe: $slashData['isMe'],
                             isBot: $slashData['isBot'],
-                            isMe: $slashData['isMe'] ?? false,
                         ),
                         raw: $slashData['raw'] ?? null,
                         triggerId: $slashData['triggerId'] ?? null,
@@ -1132,6 +1158,13 @@ class Chat
                             userId: $statusData['userId'],
                             raw: $statusData['raw'] ?? null,
                             timestamp: $statusData['timestamp'] ?? null,
+                        );
+                    } elseif ($statusData['type'] === 'failed') {
+                        $this->processMessageFailed(
+                            threadId: $statusData['threadId'],
+                            messageIds: $statusData['messageIds'],
+                            userId: $statusData['userId'],
+                            raw: $statusData['raw'] ?? null,
                         );
                     }
 
@@ -1356,6 +1389,13 @@ class Chat
     private function dispatchMessageReadHandlers(MessageReadEvent $event): void
     {
         foreach ($this->messageReadHandlers as $handler) {
+            $handler($event);
+        }
+    }
+
+    private function dispatchMessageFailedHandlers(MessageFailedEvent $event): void
+    {
+        foreach ($this->messageFailedHandlers as $handler) {
             $handler($event);
         }
     }

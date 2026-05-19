@@ -20,6 +20,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `HandlesActions` / `HandlesSlashCommands` / `HandlesReactions` — optional adapter contracts for incoming events
 - `HandlesModals` / `HandlesOptionsLoad` / `HandlesSlackEvents` — optional adapter contracts for modals, external selects, Slack events
 - `SupportsModals` — optional adapter contract for opening modals from handlers
+- `SupportsEditMessages` / `SupportsDeleteMessages` — marker contracts for adapters that support editing/deleting messages (use `instanceof` instead of catching exceptions)
 - `AdapterHasMessagingWindow` — optional adapter contract for platforms with limited messaging windows (e.g., WhatsApp 24h)
 
 ## architecture notes

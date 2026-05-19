@@ -6,15 +6,22 @@ use BootDesk\ChatSDK\Core\Cards\Card;
 
 class PostableMessage
 {
-    /** @param Attachment[] $attachments */
-    /** @param FileUpload[] $files */
+    /** @var Attachment[] */
+    public readonly array $attachments;
+
+    /** @var FileUpload[] */
+    public readonly array $files;
+
     public function __construct(
         public readonly string|Card|Template $content,
         public readonly ?string $replyToMessageId = null,
-        public readonly array $attachments = [],
-        public readonly array $files = [],
+        array $attachments = [],
+        array $files = [],
         public readonly ?array $metadata = null,
-    ) {}
+    ) {
+        $this->attachments = $attachments;
+        $this->files = $files;
+    }
 
     public static function text(string $text): self
     {
