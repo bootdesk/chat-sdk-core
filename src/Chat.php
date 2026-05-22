@@ -999,17 +999,19 @@ class Chat
                 if ($adapter instanceof HandlesActions) {
                     $actionData = $adapter->parseAction($request);
                     if ($actionData !== null) {
+                        $user = $actionData['author'] ?? new Author(
+                            id: $actionData['userId'],
+                            isMe: $actionData['isMe'],
+                            isBot: $actionData['isBot'],
+                        );
+
                         $this->processAction(
                             adapter: $adapter,
                             threadId: $actionData['threadId'],
                             actionId: $actionData['actionId'],
                             value: $actionData['value'] ?? null,
                             messageId: $actionData['messageId'],
-                            user: new Author(
-                                id: $actionData['userId'],
-                                isMe: $actionData['isMe'],
-                                isBot: $actionData['isBot'],
-                            ),
+                            user: $user,
                             triggerId: $actionData['triggerId'] ?? null,
                             raw: $actionData['raw'] ?? null,
                             originId: $actionData['originId'] ?? null,
@@ -1028,16 +1030,18 @@ class Chat
                 if ($adapter instanceof HandlesSlashCommands) {
                     $slashData = $adapter->parseSlashCommand($request);
                     if ($slashData !== null) {
+                        $user = $slashData['author'] ?? new Author(
+                            id: $slashData['userId'],
+                            isMe: $slashData['isMe'],
+                            isBot: $slashData['isBot'],
+                        );
+
                         $this->processSlashCommand(
                             adapter: $adapter,
                             channelId: $slashData['channelId'],
                             command: $slashData['command'],
                             text: $slashData['text'],
-                            user: new Author(
-                                id: $slashData['userId'],
-                                isMe: $slashData['isMe'],
-                                isBot: $slashData['isBot'],
-                            ),
+                            user: $user,
                             raw: $slashData['raw'] ?? null,
                             triggerId: $slashData['triggerId'] ?? null,
                         );
@@ -1054,7 +1058,7 @@ class Chat
                             adapter: $adapter,
                             callbackId: $modalData['callbackId'],
                             values: $modalData['values'],
-                            user: new Author(
+                            user: $modalData['author'] ?? new Author(
                                 id: $modalData['userId'],
                             ),
                             raw: $modalData['raw'] ?? null,
@@ -1070,7 +1074,7 @@ class Chat
                         $this->processModalClose(
                             adapter: $adapter,
                             callbackId: $modalData['callbackId'],
-                            user: new Author(
+                            user: $modalData['author'] ?? new Author(
                                 id: $modalData['userId'],
                             ),
                             raw: $modalData['raw'] ?? null,
@@ -1090,7 +1094,7 @@ class Chat
                             adapter: $adapter,
                             actionId: $optionsData['actionId'],
                             query: $optionsData['query'],
-                            user: new Author(
+                            user: $optionsData['author'] ?? new Author(
                                 id: $optionsData['userId'],
                             ),
                             raw: $optionsData['raw'] ?? null,
@@ -1114,7 +1118,7 @@ class Chat
                             threadId: $reactionData['threadId'],
                             emoji: $reactionData['emoji'],
                             messageId: $reactionData['messageId'],
-                            user: new Author(
+                            user: $reactionData['author'] ?? new Author(
                                 id: $reactionData['userId'],
                             ),
                             added: $reactionData['added'],
@@ -1241,7 +1245,7 @@ class Chat
                 actionId: $event->payload['actionId'],
                 value: $event->payload['value'] ?? null,
                 messageId: $event->payload['messageId'],
-                user: new Author(
+                user: $event->payload['author'] ?? new Author(
                     id: $event->payload['userId'],
                     isMe: $event->payload['isMe'],
                     isBot: $event->payload['isBot'],
@@ -1255,7 +1259,7 @@ class Chat
                 threadId: $event->threadId,
                 emoji: $event->payload['emoji'],
                 messageId: $event->payload['messageId'],
-                user: new Author(id: $event->payload['userId']),
+                user: $event->payload['author'] ?? new Author(id: $event->payload['userId']),
                 added: $event->payload['added'],
                 rawEmoji: $event->payload['rawEmoji'],
                 raw: $event->payload['raw'] ?? null,
@@ -1266,7 +1270,7 @@ class Chat
                 channelId: $event->payload['channelId'],
                 command: $event->payload['command'],
                 text: $event->payload['text'],
-                user: new Author(
+                user: $event->payload['author'] ?? new Author(
                     id: $event->payload['userId'],
                     isMe: $event->payload['isMe'],
                     isBot: $event->payload['isBot'],

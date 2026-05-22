@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace BootDesk\ChatSDK\Core\Contracts;
 
+use BootDesk\ChatSDK\Core\Author;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 interface HandlesActions
 {
     /**
-     * @return array{actionId: string, value: ?string, threadId: string, messageId: string, userId: string, isBot: bool, isMe: bool, triggerId: ?string, raw: mixed, callbackQueryId: ?string, originId: ?string}|null
+     * @return array{author?: Author, actionId: string, value: ?string, threadId: string, messageId: string, userId: string, isBot: bool, isMe: bool, triggerId: ?string, raw: mixed, callbackQueryId: ?string, originId: ?string}|null
      */
     public function parseAction(ServerRequestInterface $request): ?array;
 

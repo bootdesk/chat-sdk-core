@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace BootDesk\ChatSDK\Core\Contracts;
 
+use BootDesk\ChatSDK\Core\Author;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 interface HandlesOptionsLoad
 {
     /**
-     * @return array{actionId: string, query: string, userId: string, raw: mixed}|null
+     * @return array{author?: Author, actionId: string, query: string, userId: string, raw: mixed}|null
      */
     public function parseOptionsLoad(ServerRequestInterface $request): ?array;
 
