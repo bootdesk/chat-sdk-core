@@ -211,4 +211,106 @@ class Card implements CardElement
 
         return implode("\n", $parts);
     }
+
+    /**
+     * Serialize the card to a JSON-serializable array for broadcasting.
+     */
+    public function toArray(): array
+    {
+        $result = [
+            'type' => 'card',
+            'fallbackText' => $this->getFallbackText(),
+        ];
+
+        if ($this->header !== null) {
+            $result['header'] = $this->header;
+        }
+
+        if ($this->imageUrl !== null) {
+            $result['image'] = [
+                'url' => $this->imageUrl,
+                'alt' => $this->imageAlt ?? '',
+            ];
+        }
+
+        $sections = [];
+        $actions = [];
+        $elements = [];
+
+        foreach ($this->children as $child) {
+            if ($child instanceof Section) {
+                $section = ['type' => 'section'];
+                if ($child->getText() !== null) {
+                    $section['text'] = $child->getText();
+                }
+                $fields = [];
+                foreach ($child->getFields() as $label => $value) {
+                    $fields[] = ['title' => $label, 'value' => $value];
+                }
+                if ($fields !== []) {
+                    $section['fields'] = $fields;
+                }
+                $sections[] = $section;
+            } elseif ($child instanceof Button) {
+                $action = [
+                    'type' => 'button',
+                    'id' => $child->actionId,
+                    'label' => $child->label,
+                    'style' => $child->style->value,
+                ];
+                if ($child->data !== []) {
+                    $action['value'] = json_encode($child->data);
+                }
+                if ($child->actionHref !== null) {
+                    $action['href'] = $child->actionHref;
+                }
+                $actions[] = $action;
+            } elseif ($child instanceof Image) {
+                $elements[] = [
+                    'type' => 'image',
+                    'url' => $child->url,
+                    'alt' => $child->alt,
+                ];
+            } elseif ($child instanceof Text) {
+                $elements[] = [
+                    'type' => 'text',
+                    'content' => $child->content,
+                    'style' => $child->style->value,
+                ];
+            } elseif ($child instanceof Divider) {
+                $elements[] = ['type' => 'divider'];
+            } elseif ($child instanceof Link) {
+                $elements[] = [
+                    'type' => 'link',
+                    'label' => $child->label,
+                    'url' => $child->url,
+                ];
+            } elseif ($child instanceof Table) {
+                $elements[] = [
+                    'type' => 'table',
+                    'headers' => $child->headers,
+                    'rows' => $child->rows,
+                ];
+            } elseif ($child instanceof LinkButton) {
+                $elements[] = [
+                    'type' => 'link_button',
+                    'label' => $child->label,
+                    'url' => $child->url,
+                    'style' => $child->style->value,
+                ];
+            }
+        }
+
+        if ($sections !== []) {
+            $result['sections'] = $sections;
+        }
+        if ($actions !== []) {
+            $result['actions'] = $actions;
+        }
+        if ($elements !== []) {
+            $result['elements'] = $elements;
+        }
+
+        return $result;
+    }
 }

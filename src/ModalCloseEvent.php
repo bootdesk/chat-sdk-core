@@ -4,8 +4,12 @@ declare(strict_types=1);
 
 namespace BootDesk\ChatSDK\Core;
 
-class ModalCloseEvent
+use Psr\EventDispatcher\StoppableEventInterface;
+
+class ModalCloseEvent implements StoppableEventInterface
 {
+    private bool $propagationStopped = false;
+
     public function __construct(
         public readonly string $callbackId,
         public readonly Author $user,
@@ -15,4 +19,14 @@ class ModalCloseEvent
         public readonly ?Thread $relatedThread = null,
         public readonly ?Message $relatedMessage = null,
     ) {}
+
+    public function stopPropagation(): void
+    {
+        $this->propagationStopped = true;
+    }
+
+    public function isPropagationStopped(): bool
+    {
+        return $this->propagationStopped;
+    }
 }

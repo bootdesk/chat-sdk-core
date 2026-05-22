@@ -65,4 +65,30 @@ class PostableMessage
 
         return $this->content;
     }
+
+    /**
+     * Serialize for the web adapter JSON response format.
+     *
+     * @return array{id: string, role: string, text: string, attachments: array, card?: array|null}
+     */
+    public function toArray(string $messageId, string $conversationId): array
+    {
+        $attachments = array_map(
+            fn (Attachment $a): array => $a->toArray(),
+            $this->attachments,
+        );
+
+        $result = [
+            'id' => $conversationId,
+            'role' => 'assistant',
+            'text' => $this->getTextContent(),
+            'attachments' => $attachments,
+        ];
+
+        if ($this->isCard()) {
+            $result['card'] = $this->content->toArray();
+        }
+
+        return $result;
+    }
 }

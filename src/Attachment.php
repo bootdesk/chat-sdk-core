@@ -17,4 +17,15 @@ class Attachment
         public $fetchData = null,
         public readonly ?array $fetchMetadata = null,
     ) {}
+
+    public function toArray(): array
+    {
+        return [
+            'type' => $this->type,
+            'url' => $this->url,
+            'name' => $this->name,
+            'mime_type' => $this->mimeType,
+            'size' => $this->size,
+        ];
+    }
 }

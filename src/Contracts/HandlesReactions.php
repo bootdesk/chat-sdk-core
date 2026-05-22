@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 interface HandlesReactions
 {
     /**
-     * @return array{emoji: string, rawEmoji: string, added: bool, threadId: string, messageId: string, userId: string, raw: mixed}|null
+     * @return array{emoji: string, rawEmoji: string, added: bool, threadId: string, messageId: string, userId: string, raw: mixed, originId: ?string}|null
      */
     public function parseReaction(ServerRequestInterface $request): ?array;
 }

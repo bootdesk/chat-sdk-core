@@ -59,17 +59,17 @@ Build rich, platform-adaptive message cards with text, tables, dividers, links, 
 
 ### Element types
 
-| Builder method | Type | Description |
-|----------------|------|-------------|
-| `header(string)` | — | Card title (rendered as bold header) |
-| `section(callable)` | `Section` | Grouped text + fields |
-| `text(string, TextStyle)` | `Text` | Styled text (`Bold`, `Muted`, `Plain`) |
-| `divider()` | `Divider` | Horizontal separator (`---`) |
-| `link(label, url)` | `Link` | Inline hyperlink |
-| `table(headers, rows, align)` | `Table` | Data table with optional column alignment |
-| `image(url, alt)` | `Image` | Embedded image |
-| `actions(Button[])` | `Button` | Action buttons (triggers `onAction`) |
-| `linkButton(label, url, style)` | `LinkButton` | URL button (opens link) |
+| Builder method                  | Type         | Description                               |
+| ------------------------------- | ------------ | ----------------------------------------- |
+| `header(string)`                | —            | Card title (rendered as bold header)      |
+| `section(callable)`             | `Section`    | Grouped text + fields                     |
+| `text(string, TextStyle)`       | `Text`       | Styled text (`Bold`, `Muted`, `Plain`)    |
+| `divider()`                     | `Divider`    | Horizontal separator (`---`)              |
+| `link(label, url)`              | `Link`       | Inline hyperlink                          |
+| `table(headers, rows, align)`   | `Table`      | Data table with optional column alignment |
+| `image(url, alt)`               | `Image`      | Embedded image                            |
+| `actions(Button[])`             | `Button`     | Action buttons (triggers `onAction`)      |
+| `linkButton(label, url, style)` | `LinkButton` | URL button (opens link)                   |
 
 ### Text styles
 
@@ -176,15 +176,15 @@ $card = Card::make()
 
 Each adapter converts cards to its native format:
 
-| Adapter | Format |
-|---------|--------|
-| Slack | Block Kit (header, section, divider, image, actions) |
-| Discord | Embed + Action Row components |
-| Telegram | HTML text + inline keyboard |
-| WhatsApp | Interactive reply buttons or text fallback |
-| Messenger | Generic/Button template |
-| GitHub | Markdown (headings, pipe tables, links) |
-| Linear | Markdown (same as GitHub) |
+| Adapter   | Format                                               |
+| --------- | ---------------------------------------------------- |
+| Slack     | Block Kit (header, section, divider, image, actions) |
+| Discord   | Embed + Action Row components                        |
+| Telegram  | HTML text + inline keyboard                          |
+| WhatsApp  | Interactive reply buttons or text fallback           |
+| Messenger | Generic/Button template                              |
+| GitHub    | Markdown (headings, pipe tables, links)              |
+| Linear    | Markdown (same as GitHub)                            |
 
 ## Attachments & File Uploads
 
@@ -338,19 +338,23 @@ AdapterRegistry::register('telegram-custom', MyTelegramAdapter::class);
 
 The state adapter handles persistence, pub/sub, locking, and queuing. Methods:
 
-| Method | Purpose |
-|--------|---------|
-| `connect` | Establish connection to state store |
-| `disconnect` | Close connection |
-| `subscribe` | Subscribe to a channel |
-| `unsubscribe` | Unsubscribe from a channel |
-| `acquireLock` | Acquire a named lock |
-| `releaseLock` | Release a named lock |
-| `get` | Retrieve a value by key |
-| `set` | Store a value by key |
-| `delete` | Remove a value by key |
-| `enqueue` | Add item to a queue |
-| `dequeue` | Remove and return item from a queue |
+| Method        | Purpose                                                  |
+| ------------- | -------------------------------------------------------- |
+| `connect`     | Establish connection to state store                      |
+| `disconnect`  | Close connection                                         |
+| `subscribe`   | Subscribe to a channel                                   |
+| `unsubscribe` | Unsubscribe from a channel                               |
+| `acquireLock` | Acquire a named lock with TTL (returns `Lock` or `null`) |
+| `releaseLock` | Release a previously acquired lock                       |
+| `extendLock`  | Extend a lock's TTL (returns `bool`)                     |
+| `get`         | Retrieve a value by key                                  |
+| `set`         | Store a value by key with optional TTL                   |
+| `delete`      | Remove a value by key                                    |
+| `enqueue`     | Add item to a queue (max size configurable)              |
+| `dequeue`     | Remove and return item from a queue                      |
+| `queueDepth`  | Get current queue size                                   |
+
+**Locks** are used for concurrency control (drop/queue/debounce strategies). **Queues** store pending messages when `concurrency: queue` is set.
 
 ## MessageContext
 
@@ -361,22 +365,22 @@ Passed to every event handler.
 
 ## Event handlers
 
-| Method | Pattern | Description |
-|--------|---------|-------------|
-| `onNewMessage` | regex | Match text messages |
-| `onDirectMessage` | - | DM-only messages |
-| `onNewMention` | - | Bot was mentioned |
-| `onSubscribedMessage` | - | Subscribed thread messages |
-| `onReaction` | emoji | Reaction added/removed |
-| `onAction` | actionId | Button/action triggered |
-| `onSlashCommand` | command | Slash command |
-| `onModalSubmit` | callbackId | Modal form submitted |
-| `onModalClose` | callbackId | Modal form closed |
-| `onOptionsLoad` | actionId | External select options requested |
-| `onAssistantThreadStarted` | - | Slack assistant thread created |
-| `onAssistantContextChanged` | - | Slack assistant context changed |
-| `onAppHomeOpened` | - | Slack App Home tab opened |
-| `onMemberJoinedChannel` | - | User joined a channel |
+| Method                      | Pattern    | Description                       |
+| --------------------------- | ---------- | --------------------------------- |
+| `onNewMessage`              | regex      | Match text messages               |
+| `onDirectMessage`           | -          | DM-only messages                  |
+| `onNewMention`              | -          | Bot was mentioned                 |
+| `onSubscribedMessage`       | -          | Subscribed thread messages        |
+| `onReaction`                | emoji      | Reaction added/removed            |
+| `onAction`                  | actionId   | Button/action triggered           |
+| `onSlashCommand`            | command    | Slash command                     |
+| `onModalSubmit`             | callbackId | Modal form submitted              |
+| `onModalClose`              | callbackId | Modal form closed                 |
+| `onOptionsLoad`             | actionId   | External select options requested |
+| `onAssistantThreadStarted`  | -          | Slack assistant thread created    |
+| `onAssistantContextChanged` | -          | Slack assistant context changed   |
+| `onAppHomeOpened`           | -          | Slack App Home tab opened         |
+| `onMemberJoinedChannel`     | -          | User joined a channel             |
 
 ## Modals
 
@@ -473,6 +477,7 @@ $chat->onModalClose(function (ModalCloseEvent $event) {
 - `ModalCloseEvent`: `callbackId`, `user`, `viewId`, `relatedThread`
 
 ## Documentationn
+
 Full API documentation: https://bootdesk.github.io/chat-sdk
 
 ## License

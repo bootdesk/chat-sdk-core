@@ -11,5 +11,6 @@ class MessageReadEvent
         public readonly string $userId,
         public readonly mixed $raw = null,
         public readonly ?int $timestamp = null,
+        public readonly ?string $originId = null,
     ) {}
 }

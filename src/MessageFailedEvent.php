@@ -12,5 +12,6 @@ class MessageFailedEvent
         public readonly string $threadId,
         public readonly string $userId,
         public readonly mixed $raw = null,
+        public readonly ?string $originId = null,
     ) {}
 }

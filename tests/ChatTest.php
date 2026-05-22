@@ -10,26 +10,37 @@ use BootDesk\ChatSDK\Core\Author;
 use BootDesk\ChatSDK\Core\Channel;
 use BootDesk\ChatSDK\Core\Chat;
 use BootDesk\ChatSDK\Core\Concurrency\Handler;
+use BootDesk\ChatSDK\Core\Contracts\Adapter;
+use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\WebhookEventMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\WebhookMiddleware;
 use BootDesk\ChatSDK\Core\Exceptions\ResourceNotFoundException;
 use BootDesk\ChatSDK\Core\MemberJoinedChannelEvent;
+use BootDesk\ChatSDK\Core\Message;
 use BootDesk\ChatSDK\Core\MessageContext;
 use BootDesk\ChatSDK\Core\MessageDeliveredEvent;
 use BootDesk\ChatSDK\Core\MessageReadEvent;
 use BootDesk\ChatSDK\Core\ModalCloseEvent;
 use BootDesk\ChatSDK\Core\ModalSubmitEvent;
 use BootDesk\ChatSDK\Core\OptionsLoadEvent;
+use BootDesk\ChatSDK\Core\PostableMessage;
 use BootDesk\ChatSDK\Core\QueueEntry;
 use BootDesk\ChatSDK\Core\ReactionEvent;
 use BootDesk\ChatSDK\Core\SlashCommandEvent;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MemoryStateAdapter;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MockAdapter;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MockAdapterResolver;
+use BootDesk\ChatSDK\Core\Tests\Helpers\MockBatchedAdapter;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestSendingMiddleware;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestWebhookMiddleware;
 use BootDesk\ChatSDK\Core\Thread;
+use BootDesk\ChatSDK\Core\WebhookEvent;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 class ChatTest extends TestCase
 {
@@ -868,6 +879,159 @@ class ChatTest extends TestCase
         $this->assertTrue($middleware->called);
     }
 
+    public function test_multiple_sending_middlewares_execute_in_order(): void
+    {
+        $order = [];
+
+        $first = new class implements SendingMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'first';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+        $first->setOrder($order);
+
+        $second = new class implements SendingMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'second';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+        $second->setOrder($order);
+
+        $this->chat->addSendingMiddleware($first);
+        $this->chat->addSendingMiddleware($second);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
+    public function test_multiple_webhook_middlewares_execute_in_order(): void
+    {
+        $order = [];
+        $factory = new Psr17Factory;
+
+        $first = new class implements WebhookMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(ServerRequestInterface $request, callable $next): ResponseInterface
+            {
+                $this->order[] = 'first';
+
+                return $next($request);
+            }
+        };
+        $first->setOrder($order);
+
+        $second = new class implements WebhookMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(ServerRequestInterface $request, callable $next): ResponseInterface
+            {
+                $this->order[] = 'second';
+
+                return $next($request);
+            }
+        };
+        $second->setOrder($order);
+
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock' => new MockAdapter],
+            responseFactory: $factory,
+        );
+        $chat->addWebhookMiddleware($first);
+        $chat->addWebhookMiddleware($second);
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $chat->handleWebhook('mock', $request);
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
+    public function test_multiple_receiving_middlewares_execute_in_order(): void
+    {
+        $order = [];
+
+        $first = new class implements ReceivingMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(Message $message, Adapter $adapter, callable $next): ?Message
+            {
+                $this->order[] = 'first';
+
+                return $next($message, $adapter);
+            }
+        };
+        $first->setOrder($order);
+
+        $second = new class implements ReceivingMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(Message $message, Adapter $adapter, callable $next): ?Message
+            {
+                $this->order[] = 'second';
+
+                return $next($message, $adapter);
+            }
+        };
+        $second->setOrder($order);
+
+        $this->chat->addReceivingMiddleware($first);
+        $this->chat->addReceivingMiddleware($second);
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage();
+        $this->chat->processMessage($this->adapter, $message->threadId, $message);
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
     public function test_process_message_with_transcripts(): void
     {
         $chat = new Chat(
@@ -1186,6 +1350,273 @@ class ChatTest extends TestCase
 
         $response = $chat->handleWebhook('mock', $request);
         $this->assertSame(201, $response->getStatusCode());
+    }
+
+    public function test_handle_webhook_batched_messages(): void
+    {
+        $factory = new Psr17Factory;
+        $adapter = new MockBatchedAdapter;
+        $adapter->returnedEvents = [
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_MESSAGE,
+                threadId: 'mock_batched:C:a',
+                payload: \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(
+                    id: 'm_a',
+                    text: 'first',
+                    threadId: 'mock_batched:C:a',
+                ),
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_MESSAGE,
+                threadId: 'mock_batched:C:b',
+                payload: \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(
+                    id: 'm_b',
+                    text: 'second',
+                    threadId: 'mock_batched:C:b',
+                ),
+            ),
+        ];
+
+        $messages = [];
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock_batched' => $adapter],
+            responseFactory: $factory,
+        );
+        $chat->onNewMessage('/.*/', function (MessageContext $ctx) use (&$messages) {
+            $messages[] = $ctx->message->text;
+        });
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $response = $chat->handleWebhook('mock_batched', $request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertCount(2, $messages);
+        $this->assertSame('first', $messages[0]);
+        $this->assertSame('second', $messages[1]);
+    }
+
+    public function test_handle_webhook_batched_mixed_events(): void
+    {
+        $factory = new Psr17Factory;
+        $adapter = new MockBatchedAdapter;
+
+        $actionCaught = null;
+        $reactionCaught = null;
+        $statusCaught = null;
+
+        $adapter->returnedEvents = [
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_ACTION,
+                threadId: 'mock_batched:C',
+                payload: [
+                    'actionId' => 'btn_ok',
+                    'value' => 'confirmed',
+                    'messageId' => 'msg_1',
+                    'userId' => 'U1',
+                    'isBot' => false,
+                    'isMe' => false,
+                    'triggerId' => null,
+                    'raw' => null,
+                ],
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_REACTION,
+                threadId: 'mock_batched:C',
+                payload: [
+                    'emoji' => '👍',
+                    'rawEmoji' => '👍',
+                    'added' => true,
+                    'messageId' => 'msg_2',
+                    'userId' => 'U2',
+                    'raw' => null,
+                ],
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_STATUS,
+                threadId: 'mock_batched:C',
+                payload: [
+                    'type' => 'delivered',
+                    'messageIds' => ['msg_1'],
+                    'userId' => 'U3',
+                    'raw' => null,
+                ],
+            ),
+        ];
+
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock_batched' => $adapter],
+            responseFactory: $factory,
+        );
+
+        $chat->onAction(function (ActionEvent $e) use (&$actionCaught) {
+            $actionCaught = $e->actionId;
+        });
+        $chat->onReaction(function (ReactionEvent $e) use (&$reactionCaught) {
+            $reactionCaught = $e->emoji;
+        });
+        $chat->onMessageDelivered(function (MessageDeliveredEvent $e) use (&$statusCaught) {
+            $statusCaught = $e->messageIds;
+        });
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $response = $chat->handleWebhook('mock_batched', $request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('btn_ok', $actionCaught);
+        $this->assertSame('👍', $reactionCaught);
+        $this->assertSame(['msg_1'], $statusCaught);
+    }
+
+    public function test_handle_webhook_batched_empty(): void
+    {
+        $factory = new Psr17Factory;
+        $adapter = new MockBatchedAdapter;
+        $adapter->returnedEvents = [];
+
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock_batched' => $adapter],
+            responseFactory: $factory,
+        );
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $response = $chat->handleWebhook('mock_batched', $request);
+
+        $this->assertSame(200, $response->getStatusCode());
+    }
+
+    public function test_handle_webhook_batched_with_middleware_swaps_adapter(): void
+    {
+        $factory = new Psr17Factory;
+        $adapter = new MockBatchedAdapter;
+        $adapter->returnedEvents = [
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_MESSAGE,
+                threadId: 'mock_batched:page1',
+                originId: 'page_1',
+                payload: \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(
+                    id: 'm1',
+                    text: 'from page1',
+                    threadId: 'mock_batched:page1',
+                ),
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_MESSAGE,
+                threadId: 'mock_batched:page2',
+                originId: 'page_2',
+                payload: \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(
+                    id: 'm2',
+                    text: 'from page2',
+                    threadId: 'mock_batched:page2',
+                ),
+            ),
+        ];
+
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock_batched' => $adapter],
+            responseFactory: $factory,
+        );
+
+        $middleware = new class implements WebhookEventMiddleware
+        {
+            public bool $called = false;
+
+            public function handle(WebhookEvent $event, Adapter $adapter): Adapter
+            {
+                $this->called = true;
+
+                return $adapter;
+            }
+        };
+        $chat->addWebhookEventMiddleware($middleware);
+
+        $chat->onNewMessage('/.*/', function (MessageContext $ctx) use (&$messages) {
+            $messages[] = $ctx->message->text;
+        });
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $response = $chat->handleWebhook('mock_batched', $request);
+
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertTrue($middleware->called);
+        $this->assertCount(2, $messages);
+    }
+
+    public function test_handle_webhook_batched_passes_origin_id_to_events(): void
+    {
+        $factory = new Psr17Factory;
+        $adapter = new MockBatchedAdapter;
+        $adapter->returnedEvents = [
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_ACTION,
+                threadId: 'mock_batched:C',
+                originId: 'page_42',
+                payload: [
+                    'actionId' => 'btn_1',
+                    'value' => 'ok',
+                    'messageId' => 'm1',
+                    'userId' => 'U1',
+                    'isBot' => false,
+                    'isMe' => false,
+                    'triggerId' => null,
+                    'raw' => null,
+                ],
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_REACTION,
+                threadId: 'mock_batched:C',
+                originId: 'page_42',
+                payload: [
+                    'emoji' => '❤️',
+                    'rawEmoji' => '❤️',
+                    'added' => true,
+                    'messageId' => 'm2',
+                    'userId' => 'U2',
+                    'raw' => null,
+                ],
+            ),
+            new WebhookEvent(
+                type: WebhookEvent::TYPE_STATUS,
+                threadId: 'mock_batched:C',
+                originId: 'page_42',
+                payload: [
+                    'type' => 'delivered',
+                    'messageIds' => ['m1'],
+                    'userId' => 'U3',
+                    'raw' => null,
+                ],
+            ),
+        ];
+
+        $actionOrigin = null;
+        $reactionOrigin = null;
+        $statusOrigin = null;
+
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+            adapters: ['mock_batched' => $adapter],
+            responseFactory: $factory,
+        );
+
+        $chat->onAction(function (ActionEvent $e) use (&$actionOrigin) {
+            $actionOrigin = $e->originId;
+        });
+        $chat->onReaction(function (ReactionEvent $e) use (&$reactionOrigin) {
+            $reactionOrigin = $e->originId;
+        });
+        $chat->onMessageDelivered(function (MessageDeliveredEvent $e) use (&$statusOrigin) {
+            $statusOrigin = $e->originId;
+        });
+
+        $request = $factory->createServerRequest('POST', '/webhook');
+        $chat->handleWebhook('mock_batched', $request);
+
+        $this->assertSame('page_42', $actionOrigin);
+        $this->assertSame('page_42', $reactionOrigin);
+        $this->assertSame('page_42', $statusOrigin);
     }
 
     public function test_debounce_strategy_processes_message(): void

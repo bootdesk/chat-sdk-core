@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace BootDesk\ChatSDK\Core;
 
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
@@ -19,6 +21,10 @@ class Thread
         $postable = $this->normalizePostable($message);
         $postable = $this->runSendingMiddleware($postable, 'post');
 
+        if (! $postable instanceof PostableMessage) {
+            return new SentMessage(id: '', threadId: $this->id);
+        }
+
         return $this->adapter->postMessage($this->id, $postable);
     }
 
@@ -26,6 +32,10 @@ class Thread
     {
         $postable = $this->normalizePostable($message);
         $postable = $this->runSendingMiddleware($postable, 'edit');
+
+        if (! $postable instanceof PostableMessage) {
+            return new SentMessage(id: $messageId, threadId: $this->id);
+        }
 
         return $this->adapter->editMessage($this->id, $messageId, $postable);
     }
@@ -68,7 +78,19 @@ class Thread
     public function postEphemeral(string $userId, string|PostableMessage $message): void
     {
         $postable = $this->normalizePostable($message);
-        $this->runSendingMiddleware($postable, 'postEphemeral');
+        $postable = $this->runSendingMiddleware($postable, 'postEphemeral');
+
+        if (! $postable instanceof PostableMessage) {
+            return;
+        }
+
+        // Ephemeral messages are adapter-specific (e.g., Slack ephemeral).
+        // Posting as a regular message if the adapter doesn't support it.
+        try {
+            $this->adapter->postMessage($this->id, $postable);
+        } catch (\Throwable) {
+            // Silently fail for unsupported operations
+        }
     }
 
     public function getState(): array
@@ -87,7 +109,10 @@ class Thread
 
     public function fetchMessages(?FetchOptions $options = null): FetchResult
     {
-        return $this->adapter->fetchMessages($this->id, $options);
+        return $this->adapter->fetchMessages(
+            threadId: $this->id,
+            options: $options
+        );
     }
 
     private function normalizePostable(string|PostableMessage|Cards\Card $message): PostableMessage
@@ -103,22 +128,14 @@ class Thread
         return PostableMessage::text($message);
     }
 
-    private function runSendingMiddleware(PostableMessage $message, string $operation): PostableMessage
+    private function runSendingMiddleware(PostableMessage $message, string $operation): ?PostableMessage
     {
-        $current = $message;
-
-        foreach ($this->chat->getSendingMiddleware() as $middleware) {
-            $result = $middleware->handle($this->id, $current, $this->adapter, $operation, function ($threadId, $msg, $adapter, $op) use (&$current): null {
-                $current = $msg;
-
-                return null;
-            });
-
-            if ($result instanceof SentMessage) {
-                return $current;
-            }
-        }
-
-        return $current;
+        return $this->chat->getMiddleware()->processSending(
+            threadId: $this->id,
+            message: $message,
+            adapter: $this->adapter,
+            operation: $operation,
+            handler: fn ($tid, PostableMessage $msg, $adapter, $op): PostableMessage => $msg
+        );
     }
 }

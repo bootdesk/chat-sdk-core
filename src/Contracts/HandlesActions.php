@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface;
 interface HandlesActions
 {
     /**
-     * @return array{actionId: string, value: ?string, threadId: string, messageId: string, userId: string, isBot: bool, isMe: bool, triggerId: ?string, raw: mixed, callbackQueryId: ?string}|null
+     * @return array{actionId: string, value: ?string, threadId: string, messageId: string, userId: string, isBot: bool, isMe: bool, triggerId: ?string, raw: mixed, callbackQueryId: ?string, originId: ?string}|null
      */
     public function parseAction(ServerRequestInterface $request): ?array;
 
