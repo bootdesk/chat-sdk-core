@@ -9,16 +9,18 @@ use BootDesk\ChatSDK\Core\AssistantThreadStartedEvent;
 use BootDesk\ChatSDK\Core\Author;
 use BootDesk\ChatSDK\Core\Channel;
 use BootDesk\ChatSDK\Core\Chat;
-use BootDesk\ChatSDK\Core\Concurrency\Handler;
+use BootDesk\ChatSDK\Core\Concurrency\DefaultConcurrencyHandler;
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\WebhookEventMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\WebhookMiddleware;
 use BootDesk\ChatSDK\Core\Exceptions\ResourceNotFoundException;
 use BootDesk\ChatSDK\Core\MemberJoinedChannelEvent;
 use BootDesk\ChatSDK\Core\Message;
 use BootDesk\ChatSDK\Core\MessageContext;
+use BootDesk\ChatSDK\Core\MessageCostEvent;
 use BootDesk\ChatSDK\Core\MessageDeliveredEvent;
 use BootDesk\ChatSDK\Core\MessageReadEvent;
 use BootDesk\ChatSDK\Core\ModalCloseEvent;
@@ -27,16 +29,21 @@ use BootDesk\ChatSDK\Core\OptionsLoadEvent;
 use BootDesk\ChatSDK\Core\PostableMessage;
 use BootDesk\ChatSDK\Core\QueueEntry;
 use BootDesk\ChatSDK\Core\ReactionEvent;
+use BootDesk\ChatSDK\Core\SentMessage;
 use BootDesk\ChatSDK\Core\SlashCommandEvent;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MemoryStateAdapter;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MockAdapter;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MockAdapterResolver;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MockBatchedAdapter;
+use BootDesk\ChatSDK\Core\Tests\Helpers\TestHeardMiddleware;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestSendingMiddleware;
+use BootDesk\ChatSDK\Core\Tests\Helpers\TestSentMiddleware;
 use BootDesk\ChatSDK\Core\Tests\Helpers\TestWebhookMiddleware;
 use BootDesk\ChatSDK\Core\Thread;
 use BootDesk\ChatSDK\Core\WebhookEvent;
+use Money\Currency;
+use Money\Money;
 use Nyholm\Psr7\Factory\Psr17Factory;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
@@ -265,10 +272,10 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('/help', $received->command);
-        $this->assertSame('topic search', $received->text);
-        $this->assertSame('U1', $received->user->id);
-        $this->assertSame('C123', $received->channel->id);
+        $this->assertSame('/help', $received?->command);
+        $this->assertSame('topic search', $received?->text);
+        $this->assertSame('U1', $received?->user->id);
+        $this->assertSame('C123', $received?->channel->id);
     }
 
     public function test_process_slash_command_catch_all(): void
@@ -308,7 +315,7 @@ class ChatTest extends TestCase
         $this->chat->processSlashCommand($this->adapter, 'C123', '/help', '');
 
         $this->assertNotNull($received);
-        $this->assertSame('/help', $received->command);
+        $this->assertSame('/help', $received?->command);
     }
 
     public function test_process_slash_command_skips_self(): void
@@ -360,8 +367,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('👍', $received->emoji);
-        $this->assertSame('msg_1', $received->messageId);
+        $this->assertSame('👍', $received?->emoji);
+        $this->assertSame('msg_1', $received?->messageId);
     }
 
     public function test_process_reaction_catch_all(): void
@@ -374,7 +381,7 @@ class ChatTest extends TestCase
         $this->chat->processReaction($this->adapter, 'mock:C123', '🚀', 'msg_1', new Author(id: 'U1'));
 
         $this->assertNotNull($received);
-        $this->assertSame('🚀', $received->emoji);
+        $this->assertSame('🚀', $received?->emoji);
     }
 
     public function test_process_reaction_with_array_filters(): void
@@ -409,9 +416,9 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('confirm', $received->actionId);
-        $this->assertSame('yes', $received->value);
-        $this->assertSame('trig_1', $received->triggerId);
+        $this->assertSame('confirm', $received?->actionId);
+        $this->assertSame('yes', $received?->value);
+        $this->assertSame('trig_1', $received?->triggerId);
     }
 
     public function test_process_action_catch_all(): void
@@ -424,7 +431,7 @@ class ChatTest extends TestCase
         $this->chat->processAction($this->adapter, 'mock:C123', 'any_action', null, 'msg_1', new Author(id: 'U1'));
 
         $this->assertNotNull($received);
-        $this->assertSame('any_action', $received->actionId);
+        $this->assertSame('any_action', $received?->actionId);
     }
 
     public function test_process_modal_submit_dispatches_handler(): void
@@ -442,8 +449,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('feedback', $received->callbackId);
-        $this->assertSame(['rating' => '5'], $received->values);
+        $this->assertSame('feedback', $received?->callbackId);
+        $this->assertSame(['rating' => '5'], $received?->values);
     }
 
     public function test_process_modal_close_dispatches_handler(): void
@@ -460,7 +467,7 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('feedback', $received->callbackId);
+        $this->assertSame('feedback', $received?->callbackId);
     }
 
     public function test_modal_context_storage(): void
@@ -493,8 +500,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertNotNull($received->relatedChannel);
-        $this->assertSame('C123', $received->relatedChannel->id);
+        $this->assertNotNull($received?->relatedChannel);
+        $this->assertSame('C123', $received?->relatedChannel->id);
     }
 
     public function test_process_options_load_returns_result(): void
@@ -567,9 +574,9 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('C123', $received->channelId);
-        $this->assertSame('U1', $received->userId);
-        $this->assertSame(['key' => 'val'], $received->context);
+        $this->assertSame('C123', $received?->channelId);
+        $this->assertSame('U1', $received?->userId);
+        $this->assertSame(['key' => 'val'], $received?->context);
     }
 
     public function test_process_assistant_context_changed(): void
@@ -588,7 +595,7 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame(['new' => 'ctx'], $received->context);
+        $this->assertSame(['new' => 'ctx'], $received?->context);
     }
 
     public function test_process_app_home_opened(): void
@@ -605,8 +612,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('C123', $received->channelId);
-        $this->assertSame('U1', $received->userId);
+        $this->assertSame('C123', $received?->channelId);
+        $this->assertSame('U1', $received?->userId);
     }
 
     public function test_process_member_joined_channel(): void
@@ -624,9 +631,9 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('C123', $received->channelId);
-        $this->assertSame('U2', $received->userId);
-        $this->assertSame('U1', $received->inviterId);
+        $this->assertSame('C123', $received?->channelId);
+        $this->assertSame('U2', $received?->userId);
+        $this->assertSame('U1', $received?->inviterId);
     }
 
     public function test_open_dm_convenience(): void
@@ -666,8 +673,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame(['mid1', 'mid2'], $received->messageIds);
-        $this->assertSame('5511999999999', $received->userId);
+        $this->assertSame(['mid1', 'mid2'], $received?->messageIds);
+        $this->assertSame('5511999999999', $received?->userId);
     }
 
     public function test_process_message_read(): void
@@ -684,8 +691,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('messenger:123:456', $received->threadId);
-        $this->assertSame(1700000000, $received->timestamp);
+        $this->assertSame('messenger:123:456', $received?->threadId);
+        $this->assertSame(1700000000, $received?->timestamp);
     }
 
     public function test_process_message_delivered_no_handlers(): void
@@ -705,6 +712,60 @@ class ChatTest extends TestCase
             userId: '456',
         );
         $this->expectNotToPerformAssertions();
+    }
+
+    public function test_process_message_cost(): void
+    {
+        $received = null;
+        $this->chat->onMessageCost(function (MessageCostEvent $event) use (&$received) {
+            $received = $event;
+        });
+
+        $price = new Money(5, new Currency('USD'));
+        $this->chat->processMessageCost(
+            threadId: 'telnyx:+15551234567:+15559876543',
+            messageIds: ['mid1'],
+            userId: '+15559876543',
+            price: $price,
+        );
+
+        $this->assertNotNull($received);
+        $this->assertSame(['mid1'], $received?->messageIds);
+        $this->assertSame('+15559876543', $received?->userId);
+        $this->assertSame($price, $received?->price);
+        $this->assertSame('5', $received?->price->getAmount());
+        $this->assertSame('USD', $received?->price->getCurrency()->getCode());
+    }
+
+    public function test_process_message_cost_no_handlers(): void
+    {
+        $price = new Money(10, new Currency('EUR'));
+        $this->chat->processMessageCost(
+            threadId: 'telnyx:+15551234567:+15559876543',
+            messageIds: ['mid1'],
+            userId: '+15559876543',
+            price: $price,
+        );
+        $this->expectNotToPerformAssertions();
+    }
+
+    public function test_process_message_cost_null_price(): void
+    {
+        $received = null;
+        $this->chat->onMessageCost(function (MessageCostEvent $event) use (&$received) {
+            $received = $event;
+        });
+
+        $this->chat->processMessageCost(
+            threadId: 'whatsapp:phone123:16505551234',
+            messageIds: ['wamid.sent'],
+            userId: '16505551234',
+            raw: ['pricing' => ['category' => 'marketing']],
+        );
+
+        $this->assertNotNull($received);
+        $this->assertNull($received?->price);
+        $this->assertSame('marketing', $received?->raw['pricing']['category']);
     }
 
     public function test_message_context_state_and_metadata(): void
@@ -879,10 +940,113 @@ class ChatTest extends TestCase
         $this->assertTrue($middleware->called);
     }
 
+    public function test_sent_middleware(): void
+    {
+        $middleware = new TestSentMiddleware;
+        $this->chat->addSentMiddleware($middleware);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $sent = $thread->post('Hello');
+
+        $this->assertTrue($middleware->called);
+        $this->assertNotNull($middleware->lastResult);
+        $this->assertSame($sent->id, $middleware->lastResult->id);
+        $this->assertSame('post', $middleware->lastOperation);
+    }
+
+    public function test_multiple_sent_middlewares_execute_in_order(): void
+    {
+        $order = [];
+        /**
+         * @var object
+         */
+        $first = new class implements SentMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(string $threadId, PostableMessage $message, SentMessage $result, Adapter $adapter, string $operation, callable $next): SentMessage
+            {
+                $this->order[] = 'first';
+
+                return $next($threadId, $message, $result, $adapter, $operation);
+            }
+        };
+        $first->setOrder($order);
+        /**
+         * @var object
+         */
+        $second = new class implements SentMiddleware
+        {
+            public array $order;
+
+            public function setOrder(array &$order): void
+            {
+                $this->order = &$order;
+            }
+
+            public function handle(string $threadId, PostableMessage $message, SentMessage $result, Adapter $adapter, string $operation, callable $next): SentMessage
+            {
+                $this->order[] = 'second';
+
+                return $next($threadId, $message, $result, $adapter, $operation);
+            }
+        };
+        $second->setOrder($order);
+
+        $this->chat->addSentMiddleware($first);
+        $this->chat->addSentMiddleware($second);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
+    public function test_sent_middleware_receives_sent_message_from_adapter(): void
+    {
+        $middleware = new TestSentMiddleware;
+        $this->chat->addSentMiddleware($middleware);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertNotNull($middleware->lastResult);
+        $this->assertStringStartsWith('sent_', $middleware->lastResult->id);
+        $this->assertSame('mock:C123:456', $middleware->lastResult->threadId);
+    }
+
+    public function test_sent_middleware_not_called_when_sending_is_blocked(): void
+    {
+        $blocking = new class implements SendingMiddleware
+        {
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                return null;
+            }
+        };
+        $sentMiddleware = new TestSentMiddleware;
+
+        $this->chat->addSendingMiddleware($blocking);
+        $this->chat->addSentMiddleware($sentMiddleware);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $result = $thread->post('Blocked');
+
+        $this->assertFalse($sentMiddleware->called);
+        $this->assertSame('', $result->id);
+    }
+
     public function test_multiple_sending_middlewares_execute_in_order(): void
     {
         $order = [];
-
+        /**
+         * @var object
+         */
         $first = new class implements SendingMiddleware
         {
             public array $order;
@@ -900,7 +1064,9 @@ class ChatTest extends TestCase
             }
         };
         $first->setOrder($order);
-
+        /**
+         * @var object
+         */
         $second = new class implements SendingMiddleware
         {
             public array $order;
@@ -932,7 +1098,9 @@ class ChatTest extends TestCase
     {
         $order = [];
         $factory = new Psr17Factory;
-
+        /**
+         * @var object
+         */
         $first = new class implements WebhookMiddleware
         {
             public array $order;
@@ -950,7 +1118,9 @@ class ChatTest extends TestCase
             }
         };
         $first->setOrder($order);
-
+        /**
+         * @var object
+         */
         $second = new class implements WebhookMiddleware
         {
             public array $order;
@@ -987,6 +1157,9 @@ class ChatTest extends TestCase
     {
         $order = [];
 
+        /**
+         * @var object
+         */
         $first = new class implements ReceivingMiddleware
         {
             public array $order;
@@ -1005,6 +1178,9 @@ class ChatTest extends TestCase
         };
         $first->setOrder($order);
 
+        /**
+         * @var object
+         */
         $second = new class implements ReceivingMiddleware
         {
             public array $order;
@@ -1184,8 +1360,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertNotNull($received->relatedChannel);
-        $this->assertSame('C123', $received->relatedChannel->id);
+        $this->assertNotNull($received?->relatedChannel);
+        $this->assertSame('C123', $received?->relatedChannel->id);
     }
 
     public function test_dispatch_incoming_with_skip_in_dm(): void
@@ -1298,7 +1474,7 @@ class ChatTest extends TestCase
         $this->chat->processModalSubmit($this->adapter, 'any_form', [], new Author(id: 'U1'));
 
         $this->assertNotNull($received);
-        $this->assertSame('any_form', $received->callbackId);
+        $this->assertSame('any_form', $received?->callbackId);
     }
 
     public function test_on_modal_close_with_callable_first_arg(): void
@@ -1311,7 +1487,7 @@ class ChatTest extends TestCase
         $this->chat->processModalClose($this->adapter, 'any_form', new Author(id: 'U1'));
 
         $this->assertNotNull($received);
-        $this->assertSame('any_form', $received->callbackId);
+        $this->assertSame('any_form', $received?->callbackId);
     }
 
     public function test_mention_handler_skip_ends_early(): void
@@ -1533,6 +1709,7 @@ class ChatTest extends TestCase
         };
         $chat->addWebhookEventMiddleware($middleware);
 
+        $messages = [];
         $chat->onNewMessage('/.*/', function (MessageContext $ctx) use (&$messages) {
             $messages[] = $ctx->message->text;
         });
@@ -1798,8 +1975,8 @@ class ChatTest extends TestCase
         );
 
         $this->assertNotNull($received);
-        $this->assertSame('latest', $received->message->text);
-        $this->assertCount(1, $received->skippedMessages);
+        $this->assertSame('latest', $received?->message->text);
+        $this->assertCount(1, $received?->skippedMessages);
     }
 
     public function test_concurrent_at_capacity_drops(): void
@@ -1811,9 +1988,10 @@ class ChatTest extends TestCase
         $adapter = new MockAdapter;
         $chat->registerAdapter('mock', $adapter);
 
-        // Set slots to capacity directly
-        $ref = new \ReflectionProperty(Chat::class, 'concurrentSlots');
-        $ref->setValue($chat, ['mock:C:conc' => 3]);
+        $chatRef = new \ReflectionProperty(Chat::class, 'concurrencyHandler');
+        $handler = $chatRef->getValue($chat);
+        $handlerRef = new \ReflectionProperty(DefaultConcurrencyHandler::class, 'concurrentSlots');
+        $handlerRef->setValue($handler, ['mock:C:conc' => 3]);
 
         $called = false;
         $chat->onNewMessage('/.*/', function () use (&$called) {
@@ -1832,25 +2010,28 @@ class ChatTest extends TestCase
         $this->assertFalse($called);
     }
 
-    public function test_drain_all_queued_early_return_when_empty(): void
+    public function test_process_message_in_job_dispatches_inline(): void
     {
-        $ref = new \ReflectionMethod(Chat::class, 'drainAllQueued');
-        $handler = new Handler(
-            new MemoryStateAdapter,
-        );
-
         $chat = new Chat(
             state: new MemoryStateAdapter,
         );
+        $adapter = new MockAdapter;
+        $chat->registerAdapter('mock', $adapter);
 
-        // Calling drainAllQueued with an empty queue should be a no-op
-        $ref->invokeArgs($chat, [
-            new MockAdapter,
-            'mock:C:empty_q',
-            $handler,
-        ]);
+        $called = false;
+        $chat->onNewMessage('/.*/', function () use (&$called) {
+            $called = true;
+        });
 
-        $this->assertTrue(true);
+        $chat->processMessageInJob(
+            $adapter,
+            'mock:C:job_test',
+            \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(id: 'job1', threadId: 'mock:C:job_test'),
+            skippedMessages: [],
+            totalSinceLastHandler: 1,
+        );
+
+        $this->assertTrue($called);
     }
 
     public function test_pattern_skip_stops_further_patterns(): void
@@ -1882,7 +2063,7 @@ class ChatTest extends TestCase
         $this->chat->processMessage($this->adapter, $message->threadId, $message);
 
         $this->assertNotNull($received);
-        $this->assertTrue($received->message->isMention);
+        $this->assertTrue($received?->message->isMention);
     }
 
     public function test_mention_in_subscribed_thread_does_not_fire_mention(): void
@@ -1992,5 +2173,39 @@ class ChatTest extends TestCase
 
         $thread->unsubscribe();
         $this->assertFalse($thread->isSubscribed());
+    }
+
+    public function test_heard_middleware_fires_on_pattern_match(): void
+    {
+        $middleware = new TestHeardMiddleware;
+        $this->chat->addHeardMiddleware($middleware);
+
+        $received = false;
+        $this->chat->onNewMessage('/hello/', function (MessageContext $ctx) use (&$received) {
+            $received = true;
+        });
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(text: 'hello world');
+        $this->chat->processMessage($this->adapter, $message->threadId, $message);
+
+        $this->assertSame('/hello/', $middleware->lastPattern);
+        $this->assertTrue($received);
+    }
+
+    public function test_heard_middleware_can_stop_handler(): void
+    {
+        $middleware = new TestHeardMiddleware(stop: true);
+        $this->chat->addHeardMiddleware($middleware);
+
+        $received = false;
+        $this->chat->onNewMessage('/hello/', function (MessageContext $ctx) use (&$received) {
+            $received = true;
+        });
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(text: 'hello world');
+        $this->chat->processMessage($this->adapter, $message->threadId, $message);
+
+        $this->assertSame('/hello/', $middleware->lastPattern);
+        $this->assertFalse($received);
     }
 }

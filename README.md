@@ -10,16 +10,18 @@ composer require bootdesk/chat-sdk-core
 
 ## Chat class
 
-The main entry point. Accepts a state adapter, bot name, and configuration array.
+The main entry point. Accepts a state adapter, adapters, configuration, and optional `ConcurrencyHandler`.
 
 ```php
 use BootDesk\ChatSDK\Core\Chat;
 use BootDesk\ChatSDK\Core\State\MemoryStateAdapter;
+use BootDesk\ChatSDK\Core\Concurrency\DefaultConcurrencyHandler;
 
 $chat = new Chat(
     state: new MemoryStateAdapter(),
     userName: 'MyBot',
-    config: ['concurrency' => 'drop'],
+    config: [],
+    concurrencyHandler: new DefaultConcurrencyHandler($state, ['concurrency' => 'drop']),
 );
 
 // Register handlers
@@ -355,6 +357,8 @@ The state adapter handles persistence, pub/sub, locking, and queuing. Methods:
 | `queueDepth`  | Get current queue size                                   |
 
 **Locks** are used for concurrency control (drop/queue/debounce strategies). **Queues** store pending messages when `concurrency: queue` is set.
+
+Concurrency is pluggable via `ConcurrencyHandler`. The core provides `DefaultConcurrencyHandler` (sync/blocking with `usleep` for debounce). Framework packages (e.g., Laravel) replace it with async implementations that dispatch jobs to workers. Adapters can declare sync/async preference via `RequiresSyncResponse` and `RequiresAsyncResponse` marker interfaces.
 
 ## MessageContext
 

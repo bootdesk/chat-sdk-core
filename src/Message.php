@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BootDesk\ChatSDK\Core;
 
 use League\CommonMark\Node\Block\Document;
+use Money\Money;
 
 class Message
 {
@@ -22,5 +23,6 @@ class Message
         public readonly bool $isDM = false,
         public readonly ?string $raw = null,
         public readonly ?string $originId = null,
+        public readonly ?Money $price = null,
     ) {}
 }

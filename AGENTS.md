@@ -13,19 +13,23 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 ## key contracts (src/Contracts/)
 - `Adapter` — implement for each platform (getName, verifyWebhook, parseWebhook, encodeThreadId, postMessage, etc.)
 - `StateAdapter` — pluggable state backend (locks, subscribe, queue, modal context, key-value)
+- `ConcurrencyHandler` — pluggable concurrency control. Default: `DefaultConcurrencyHandler` (sync strategies with locks/queues/usleep). Framework packages replace with async implementations (e.g., `QueueConcurrencyHandler` in Laravel).
 - `FormatConverter` — platform markdown ↔ CommonMark AST
 - `AdapterResolver` — dynamic adapter resolution (multi-tenant)
 - `FileUploadConverter` — convert binary `FileUpload` to URL-based `Attachment` (for adapters without native uploads)
-- `ReceivingMiddleware` / `SendingMiddleware` / `WebhookMiddleware` — middleware pipeline
+- `ReceivingMiddleware` / `SendingMiddleware` / `WebhookMiddleware` / `WebhookEventMiddleware` / `SentMiddleware` / `HeardMiddleware` — middleware pipeline
 - `HandlesActions` / `HandlesSlashCommands` / `HandlesReactions` — optional adapter contracts for incoming events
 - `HandlesModals` / `HandlesOptionsLoad` / `HandlesSlackEvents` — optional adapter contracts for modals, external selects, Slack events
 - `SupportsModals` — optional adapter contract for opening modals from handlers
 - `SupportsEditMessages` / `SupportsDeleteMessages` — marker contracts for adapters that support editing/deleting messages (use `instanceof` instead of catching exceptions)
 - `AdapterHasMessagingWindow` — optional adapter contract for platforms with limited messaging windows (e.g., WhatsApp 24h)
+- `RequiresSyncResponse` / `RequiresAsyncResponse` — marker contracts declaring adapter's sync/async preference for concurrency handling
 
 ## architecture notes
 - Thread IDs are canonical: `"{adapter}:{platformChannelId}:{platformThreadId}"`
-- Concurrency strategies: `drop` (default), `queue`, `debounce`, `concurrent`
+- Concurrency: pluggable via `ConcurrencyHandler` interface + `Strategy` enum. `DefaultConcurrencyHandler` handles all 4 strategies (drop/queue/debounce/concurrent) synchronously with locks. Framework packages can replace with async implementations.
+- `Strategy` enum: `Drop`, `Queue`, `Debounce`, `Concurrent` — config key `concurrency` maps to these.
+- `RequiresSyncResponse` adapters always process inline (WebAdapter, DiscordAdapter). `RequiresAsyncResponse` adapters always defer to async (Slack, Telegram, Meta platforms). No marker = adaptive (inline when no contention, strategy on contention).
 - Deduplication via `StateAdapter::setIfNotExists` (300s TTL)
 - Event system: ReactionEvent, ActionEvent, SlashCommandEvent, ModalSubmitEvent, ModalCloseEvent, OptionsLoadEvent, AssistantThreadStartedEvent, AssistantContextChangedEvent, AppHomeOpenedEvent, MemberJoinedChannelEvent
 - `ActionEvent` and `SlashCommandEvent` have `openModal(Modal $modal)` via `OpensModals` trait

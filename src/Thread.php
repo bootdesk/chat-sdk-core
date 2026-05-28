@@ -25,7 +25,9 @@ class Thread
             return new SentMessage(id: '', threadId: $this->id);
         }
 
-        return $this->adapter->postMessage($this->id, $postable);
+        $result = $this->adapter->postMessage($this->id, $postable);
+
+        return $this->runSentMiddleware($postable, $result, 'post');
     }
 
     public function edit(string $messageId, string|PostableMessage $message): SentMessage
@@ -37,7 +39,9 @@ class Thread
             return new SentMessage(id: $messageId, threadId: $this->id);
         }
 
-        return $this->adapter->editMessage($this->id, $messageId, $postable);
+        $result = $this->adapter->editMessage($this->id, $messageId, $postable);
+
+        return $this->runSentMiddleware($postable, $result, 'edit');
     }
 
     public function delete(string $messageId): void
@@ -87,12 +91,15 @@ class Thread
         // Ephemeral messages are adapter-specific (e.g., Slack ephemeral).
         // Posting as a regular message if the adapter doesn't support it.
         try {
-            $this->adapter->postMessage($this->id, $postable);
+            $result = $this->adapter->postMessage($this->id, $postable);
+
+            $this->runSentMiddleware($postable, $result, 'postEphemeral');
         } catch (\Throwable) {
             // Silently fail for unsupported operations
         }
     }
 
+    /** @return array<string, mixed> */
     public function getState(): array
     {
         $key = "thread-state:{$this->id}";
@@ -101,6 +108,9 @@ class Thread
         return is_array($state) ? $state : [];
     }
 
+    /**
+     * @param  array<string, mixed>  $state
+     */
     public function setState(array $state): void
     {
         $key = "thread-state:{$this->id}";
@@ -136,6 +146,18 @@ class Thread
             adapter: $this->adapter,
             operation: $operation,
             handler: fn ($tid, PostableMessage $msg, $adapter, $op): PostableMessage => $msg
+        );
+    }
+
+    private function runSentMiddleware(PostableMessage $message, SentMessage $result, string $operation): SentMessage
+    {
+        return $this->chat->getMiddleware()->processSent(
+            threadId: $this->id,
+            message: $message,
+            result: $result,
+            adapter: $this->adapter,
+            operation: $operation,
+            handler: fn ($tid, PostableMessage $msg, SentMessage $res, $adapter, $op): SentMessage => $res
         );
     }
 }

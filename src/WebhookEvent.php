@@ -16,8 +16,10 @@ class WebhookEvent
 
     public const TYPE_SLASH_COMMAND = 'slash_command';
 
+    public const TYPE_MESSAGE_COST = 'message_cost';
+
     /**
-     * @param  'message'|'action'|'reaction'|'status'|'slash_command'  $type
+     * @param  'message'|'action'|'reaction'|'status'|'slash_command'|'message_cost'  $type
      * @param  mixed  $payload  Message for TYPE_MESSAGE, array for all others
      */
     public function __construct(

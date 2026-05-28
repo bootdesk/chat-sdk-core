@@ -2,21 +2,24 @@
 
 namespace BootDesk\ChatSDK\Core;
 
-use BootDesk\ChatSDK\Core\Concurrency\Handler;
-use BootDesk\ChatSDK\Core\Concurrency\Strategy;
+use BootDesk\ChatSDK\Core\Concurrency\DefaultConcurrencyHandler;
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\AdapterResolver;
 use BootDesk\ChatSDK\Core\Contracts\BroadcastAdapter;
+use BootDesk\ChatSDK\Core\Contracts\ConcurrencyHandler;
 use BootDesk\ChatSDK\Core\Contracts\HandlesActions;
 use BootDesk\ChatSDK\Core\Contracts\HandlesBatchedWebhooks;
+use BootDesk\ChatSDK\Core\Contracts\HandlesMessageCosts;
 use BootDesk\ChatSDK\Core\Contracts\HandlesModals;
 use BootDesk\ChatSDK\Core\Contracts\HandlesOptionsLoad;
 use BootDesk\ChatSDK\Core\Contracts\HandlesReactions;
 use BootDesk\ChatSDK\Core\Contracts\HandlesSlackEvents;
 use BootDesk\ChatSDK\Core\Contracts\HandlesSlashCommands;
 use BootDesk\ChatSDK\Core\Contracts\HandlesStatuses;
+use BootDesk\ChatSDK\Core\Contracts\HeardMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
 use BootDesk\ChatSDK\Core\Contracts\WebhookEventMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\WebhookMiddleware;
@@ -28,6 +31,7 @@ use BootDesk\ChatSDK\Core\Events\MentionEvent;
 use BootDesk\ChatSDK\Core\Events\SubscribedEvent;
 use BootDesk\ChatSDK\Core\Exceptions\ResourceNotFoundException;
 use BootDesk\ChatSDK\Core\Middleware\MiddlewareDispatcher;
+use Money\Money;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -62,18 +66,23 @@ class Chat
     /** @var array<string, callable> */
     private array $messageHandlers = [];
 
-    /** @var array<string, int> */
-    private array $concurrentSlots = [];
+    private ConcurrencyHandler $concurrencyHandler;
 
+    /**
+     * @param  array<string, Adapter>  $adapters
+     * @param  array<string, mixed>  $config
+     * @param  array{logger?: mixed, conversation_factory?: mixed}|null  $transcripts
+     */
     public function __construct(
         public readonly StateAdapter $state,
         array $adapters = [],
-        private readonly array $config = [],
+        array $config = [],
         ?AdapterResolver $adapterResolver = null,
         ?ResponseFactoryInterface $responseFactory = null,
         ?callable $identity = null,
         ?array $transcripts = null,
         ?BroadcastAdapter $broadcaster = null,
+        ?ConcurrencyHandler $concurrencyHandler = null,
     ) {
         $this->adapters = $adapters;
         $this->adapterResolver = $adapterResolver;
@@ -86,6 +95,7 @@ class Chat
         $this->listenerProvider = new ListenerProvider;
         $this->dispatcher = new EventDispatcher($this->listenerProvider);
         $this->middleware = new MiddlewareDispatcher;
+        $this->concurrencyHandler = $concurrencyHandler ?? new DefaultConcurrencyHandler($state, $config);
 
         if ($identity !== null) {
             $this->identityResolver = $identity instanceof \Closure ? $identity : \Closure::fromCallable($identity);
@@ -177,6 +187,9 @@ class Chat
         return $this;
     }
 
+    /**
+     * @param  string|array<string>|null  $filter
+     */
     public function listen(
         string $eventClass,
         callable $listener,
@@ -234,7 +247,11 @@ class Chat
         return $this->listen(SubscribedEvent::class, $handler);
     }
 
-    /** @deprecated Use listen(ReactionEvent::class, $handler, $emoji) instead */
+    /**
+     * @param  string|array<string>|callable  $emoji
+     *
+     * @deprecated Use listen(ReactionEvent::class, $handler, $emoji) instead
+     */
     public function onReaction(string|array|callable $emoji, ?callable $handler = null): self
     {
         if (is_callable($emoji)) {
@@ -253,7 +270,11 @@ class Chat
         return $this->listen(ReactionEvent::class, $handler, $filter);
     }
 
-    /** @deprecated Use listen(ActionEvent::class, $handler, $actionId) instead */
+    /**
+     * @param  string|array<string>|callable  $actionId
+     *
+     * @deprecated Use listen(ActionEvent::class, $handler, $actionId) instead
+     */
     public function onAction(string|array|callable $actionId, ?callable $handler = null): self
     {
         if (is_callable($actionId)) {
@@ -272,7 +293,11 @@ class Chat
         return $this->listen(ActionEvent::class, $handler, $filter);
     }
 
-    /** @deprecated Use listen(ModalSubmitEvent::class, $handler, $callbackId) instead */
+    /**
+     * @param  string|array<string>|callable  $callbackId
+     *
+     * @deprecated Use listen(ModalSubmitEvent::class, $handler, $callbackId) instead
+     */
     public function onModalSubmit(string|array|callable $callbackId, ?callable $handler = null): self
     {
         if (is_callable($callbackId)) {
@@ -291,7 +316,11 @@ class Chat
         return $this->listen(ModalSubmitEvent::class, $handler, $filter);
     }
 
-    /** @deprecated Use listen(ModalCloseEvent::class, $handler, $callbackId) instead */
+    /**
+     * @param  string|array<string>|callable  $callbackId
+     *
+     * @deprecated Use listen(ModalCloseEvent::class, $handler, $callbackId) instead
+     */
     public function onModalClose(string|array|callable $callbackId, ?callable $handler = null): self
     {
         if (is_callable($callbackId)) {
@@ -310,7 +339,11 @@ class Chat
         return $this->listen(ModalCloseEvent::class, $handler, $filter);
     }
 
-    /** @deprecated Use listen(SlashCommandEvent::class, $handler, $command) instead */
+    /**
+     * @param  string|array<string>|callable  $command
+     *
+     * @deprecated Use listen(SlashCommandEvent::class, $handler, $command) instead
+     */
     public function onSlashCommand(string|array|callable $command, ?callable $handler = null): self
     {
         if (is_callable($command)) {
@@ -329,7 +362,11 @@ class Chat
         return $this->listen(SlashCommandEvent::class, $handler, $filter);
     }
 
-    /** @deprecated Use listen(OptionsLoadEvent::class, $handler, $actionId) instead */
+    /**
+     * @param  string|array<string>|callable  $actionId
+     *
+     * @deprecated Use listen(OptionsLoadEvent::class, $handler, $actionId) instead
+     */
     public function onOptionsLoad(string|array|callable $actionId, ?callable $handler = null): self
     {
         if (is_callable($actionId)) {
@@ -390,11 +427,23 @@ class Chat
         return $this->listen(MessageFailedEvent::class, $handler);
     }
 
+    /** @deprecated Use listen(MessageCostEvent::class, $handler) instead */
+    public function onMessageCost(callable $handler): self
+    {
+        return $this->listen(MessageCostEvent::class, $handler);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
     public function storeModalContext(string $adapterName, string $contextId, array $data, int $ttlMs = 86400000): void
     {
         $this->state->storeModalContext($adapterName, $contextId, $data, $ttlMs);
     }
 
+    /**
+     * @return array<string, mixed>|null
+     */
     public function getAndDeleteModalContext(string $adapterName, string $contextId): ?array
     {
         return $this->state->getAndDeleteModalContext($adapterName, $contextId);
@@ -474,6 +523,9 @@ class Chat
         $this->dispatch($event);
     }
 
+    /**
+     * @param  array<string, mixed>  $values
+     */
     public function processModalSubmit(
         Adapter $adapter,
         string $callbackId,
@@ -586,6 +638,9 @@ class Chat
         $this->dispatch($event);
     }
 
+    /**
+     * @return array<int, array{label: string, value: string}>|null
+     */
     public function processOptionsLoad(
         Adapter $adapter,
         string $actionId,
@@ -683,6 +738,9 @@ class Chat
         $this->dispatch($event);
     }
 
+    /**
+     * @param  array<string>  $messageIds
+     */
     public function processMessageDelivered(
         string $threadId,
         array $messageIds,
@@ -719,6 +777,9 @@ class Chat
         $this->dispatch($event);
     }
 
+    /**
+     * @param  array<string>  $messageIds
+     */
     public function processMessageFailed(
         string $threadId,
         array $messageIds,
@@ -737,169 +798,69 @@ class Chat
         $this->dispatch($event);
     }
 
+    /**
+     * @param  array<string>  $messageIds
+     */
+    public function processMessageCost(
+        string $threadId,
+        array $messageIds,
+        string $userId,
+        ?Money $price = null,
+        mixed $raw = null,
+        ?string $originId = null,
+    ): void {
+        $event = new MessageCostEvent(
+            messageIds: $messageIds,
+            threadId: $threadId,
+            userId: $userId,
+            price: $price,
+            raw: $raw,
+            originId: $originId,
+        );
+
+        $this->dispatch($event);
+    }
+
     public function processMessage(Adapter $adapter, string $threadId, Message $message): void
     {
-        // 1. Self-filter
         if ($message->author->isMe) {
             return;
         }
 
-        // 2. Deduplication
         $dedupeKey = "dedupe:{$adapter->getName()}:{$message->id}";
         if (! $this->state->setIfNotExists($dedupeKey, true, 300_000)) {
             return;
         }
 
-        // 3. Run receiving middleware
         $message = $this->runReceivingMiddleware($message, $adapter);
         if (! $message instanceof Message) {
             return;
         }
 
-        // 4. Concurrency strategy
-        $strategy = Strategy::tryFrom($this->config['concurrency'] ?? 'drop') ?? Strategy::Drop;
-        $debounceMs = (int) ($this->config['debounceMs'] ?? 1500);
-        $maxConcurrent = (int) ($this->config['maxConcurrent'] ?? 0);
-        $maxQueueSize = (int) ($this->config['maxQueueSize'] ?? 10);
-        $lockScope = $this->config['lockScope'] ?? 'thread';
-
-        $lockKey = $lockScope === 'channel'
-            ? $adapter->getName().':'.$adapter->channelIdFromThreadId($threadId)
-            : $threadId;
-
-        $handler = new Handler($this->state, $strategy);
-
-        match ($strategy) {
-            Strategy::Drop => $this->processDrop($adapter, $threadId, $lockKey, $message, $handler),
-            Strategy::Queue => $this->processQueue($adapter, $threadId, $lockKey, $message, $handler, $maxQueueSize),
-            Strategy::Debounce => $this->processDebounce($adapter, $threadId, $lockKey, $message, $handler, $debounceMs, $maxQueueSize),
-            Strategy::Concurrent => $this->processConcurrent($adapter, $threadId, $message, $maxConcurrent),
-        };
-    }
-
-    private function processDrop(Adapter $adapter, string $threadId, string $lockKey, Message $message, Handler $handler): void
-    {
-        $lock = $handler->acquire($lockKey);
-        if (! $lock instanceof Lock) {
-            return;
-        }
-
-        try {
-            $this->dispatchIncomingMessage($adapter, $threadId, $message, [], 1);
-        } finally {
-            $handler->release($lock);
-        }
-    }
-
-    private function processQueue(Adapter $adapter, string $threadId, string $lockKey, Message $message, Handler $handler, int $maxQueueSize): void
-    {
-        $entry = new QueueEntry($message->id, serialize($message), microtime(true));
-        $handler->enqueue($threadId, $entry, $maxQueueSize);
-
-        $lock = $handler->acquire($lockKey);
-        if (! $lock instanceof Lock) {
-            return;
-        }
-
-        try {
-            $this->drainAllQueued($adapter, $threadId, $handler);
-        } finally {
-            $handler->release($lock);
-        }
-    }
-
-    private function processDebounce(Adapter $adapter, string $threadId, string $lockKey, Message $message, Handler $handler, int $debounceMs, int $maxQueueSize): void
-    {
-        $lock = $handler->acquire($lockKey);
-        if (! $lock instanceof Lock) {
-            $handler->enqueue($threadId, new QueueEntry($message->id, serialize($message), microtime(true)), $maxQueueSize);
-
-            return;
-        }
-
-        try {
-            usleep($debounceMs * 1000);
-
-            $handler->extendLock($lock, 30_000);
-
-            $messages = $this->dequeueAll($threadId, $handler);
-
-            if ($messages !== []) {
-                $latest = array_pop($messages);
-                $this->dispatchIncomingMessage($adapter, $threadId, $latest, $messages, count($messages) + 1);
-
-                return;
-            }
-
-            $this->dispatchIncomingMessage($adapter, $threadId, $message, [], 1);
-        } finally {
-            $handler->release($lock);
-        }
-    }
-
-    private function processConcurrent(Adapter $adapter, string $threadId, Message $message, int $maxConcurrent): void
-    {
-        $slotKey = $threadId;
-
-        if ($maxConcurrent > 0) {
-            $current = $this->concurrentSlots[$slotKey] ?? 0;
-            if ($current >= $maxConcurrent) {
-                return;
-            }
-            $this->concurrentSlots[$slotKey] = $current + 1;
-        }
-
-        try {
-            $this->dispatchIncomingMessage($adapter, $threadId, $message, [], 1);
-        } finally {
-            if ($maxConcurrent > 0) {
-                $this->concurrentSlots[$slotKey]--;
-                if ($this->concurrentSlots[$slotKey] <= 0) {
-                    unset($this->concurrentSlots[$slotKey]);
-                }
-            }
-        }
-    }
-
-    private function drainAllQueued(Adapter $adapter, string $threadId, Handler $handler): void
-    {
-        $messages = $this->dequeueAll($threadId, $handler);
-        if ($messages === []) {
-            return;
-        }
-
-        foreach ($messages as $msg) {
-            $this->dispatchIncomingMessage($adapter, $threadId, $msg, [], 1);
-        }
+        $this->concurrencyHandler->process(
+            $adapter,
+            $threadId,
+            $message,
+            fn (Adapter $a, string $tid, Message $msg, array $skipped, int $total) => $this->dispatchIncomingMessage($a, $tid, $msg, $skipped, $total),
+        );
     }
 
     /**
-     * @return Message[]
+     * @param  array<string>  $skippedMessages
      */
-    private function dequeueAll(string $threadId, Handler $handler): array
-    {
-        $messages = [];
-        while ($entry = $handler->dequeue($threadId)) {
-            $msg = unserialize($entry->payload);
-            if ($msg instanceof Message) {
-                $msg = new Message(
-                    id: $entry->messageId,
-                    threadId: $threadId,
-                    author: $msg->author,
-                    text: $msg->text,
-                    formatted: $msg->formatted,
-                    attachments: $msg->attachments,
-                    isMention: $msg->isMention,
-                    isDM: $msg->isDM,
-                    raw: $msg->raw,
-                );
-                $messages[] = $msg;
-            }
-        }
-
-        return $messages;
+    public function processMessageInJob(
+        Adapter $adapter,
+        string $threadId,
+        Message $message,
+        array $skippedMessages = [],
+        int $totalSinceLastHandler = 1,
+    ): void {
+        $this->dispatchIncomingMessage($adapter, $threadId, $message, $skippedMessages, $totalSinceLastHandler);
     }
 
+    /**
+     * @param  array<string>  $skippedMessages
+     */
     private function dispatchIncomingMessage(Adapter $adapter, string $threadId, Message $message, array $skippedMessages, int $totalSinceLastHandler): void
     {
         // Conversation intercept
@@ -948,6 +909,10 @@ class Chat
         // Pattern match
         foreach ($this->messageHandlers as $pattern => $handler) {
             if (preg_match($pattern, $message->text)) {
+                $context = $this->runHeardMiddleware($context, $pattern, $adapter);
+                if (! $context instanceof MessageContext) {
+                    continue;
+                }
                 $handler($context);
                 if ($context->isSkipped()) {
                     return;
@@ -1189,6 +1154,21 @@ class Chat
                     }
                 }
 
+                // Check for message costs (non-terminal — continue to other checks)
+                if ($adapter instanceof HandlesMessageCosts) {
+                    $costData = $adapter->parseMessageCost($request);
+                    if ($costData !== null) {
+                        $this->processMessageCost(
+                            threadId: $costData['threadId'],
+                            messageIds: $costData['messageIds'],
+                            userId: $costData['userId'],
+                            price: $costData['price'],
+                            raw: $costData['raw'] ?? null,
+                            originId: $costData['originId'] ?? null,
+                        );
+                    }
+                }
+
                 // Check for message statuses (delivered/read)
                 if ($adapter instanceof HandlesStatuses) {
                     $statusData = $adapter->parseStatus($request);
@@ -1279,6 +1259,14 @@ class Chat
                 triggerId: $event->payload['triggerId'] ?? null,
             ),
             WebhookEvent::TYPE_STATUS => $this->dispatchStatusEvent($event),
+            WebhookEvent::TYPE_MESSAGE_COST => $this->processMessageCost(
+                threadId: $event->threadId,
+                messageIds: $event->payload['messageIds'],
+                userId: $event->payload['userId'],
+                price: $event->payload['price'] ?? null,
+                raw: $event->payload['raw'] ?? null,
+                originId: $event->originId,
+            ),
         };
     }
 
@@ -1408,13 +1396,27 @@ class Chat
         return $this;
     }
 
+    public function addSentMiddleware(SentMiddleware $middleware): self
+    {
+        $this->middleware->addSent($middleware);
+
+        return $this;
+    }
+
+    public function addHeardMiddleware(HeardMiddleware $middleware): self
+    {
+        $this->middleware->addHeard($middleware);
+
+        return $this;
+    }
+
     public function getMiddleware(): MiddlewareDispatcher
     {
         return $this->middleware;
     }
 
     /**
-     * @return SendingMiddleware[]
+     * @return array<SendingMiddleware>
      *
      * @deprecated Use getMiddleware()->getMiddlewares('sending') instead
      */
@@ -1432,11 +1434,24 @@ class Chat
         );
     }
 
+    private function runHeardMiddleware(MessageContext $context, string $pattern, Adapter $adapter): ?MessageContext
+    {
+        return $this->middleware->processHeard(
+            context: $context,
+            pattern: $pattern,
+            adapter: $adapter,
+            handler: fn (?MessageContext $c): ?MessageContext => $c
+        );
+    }
+
     private function dispatch(object $event): object
     {
         return $this->dispatcher->dispatch($event);
     }
 
+    /**
+     * @return array<int, array{label: string, value: string}>|null
+     */
     private function dispatchOptionsLoadHandlers(OptionsLoadEvent $event): ?array
     {
         /**

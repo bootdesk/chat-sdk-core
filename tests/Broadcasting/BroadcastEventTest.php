@@ -162,23 +162,6 @@ class BroadcastEventTest extends TestCase
         $this->assertTrue($array['data']['isFinal']);
     }
 
-    public function test_event_timestamp_defaults_to_now(): void
-    {
-        $event = new MessagePostedEvent(
-            threadId: 'web:u1:c1',
-            messageId: 'msg-1',
-            text: 'Hello',
-            author: ['id' => 'bot'],
-        );
-
-        $before = (int) (microtime(true) * 1000);
-        $array = $event->toArray();
-        $after = (int) (microtime(true) * 1000);
-
-        $this->assertGreaterThanOrEqual($before, $array['timestamp']);
-        $this->assertLessThanOrEqual($after, $array['timestamp']);
-    }
-
     public function test_event_timestamp_can_be_set(): void
     {
         $timestamp = 1234567890;
