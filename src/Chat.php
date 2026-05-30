@@ -821,7 +821,7 @@ class Chat
         $this->dispatch($event);
     }
 
-    public function processMessage(Adapter $adapter, string $threadId, Message $message): void
+    public function processMessage(Adapter $adapter, string $threadId, Message $message, ?ServerRequestInterface $request = null): void
     {
         if ($message->author->isMe) {
             return;
@@ -842,6 +842,7 @@ class Chat
             $threadId,
             $message,
             fn (Adapter $a, string $tid, Message $msg, array $skipped, int $total) => $this->dispatchIncomingMessage($a, $tid, $msg, $skipped, $total),
+            $request,
         );
     }
 
@@ -954,7 +955,7 @@ class Chat
                             $adapter,
                             fn (WebhookEvent $e, Adapter $a): Adapter => $a,
                         );
-                        $this->dispatchWebhookEvent($eventAdapter, $event);
+                        $this->dispatchWebhookEvent($eventAdapter, $event, $request);
                     }
 
                     return $this->webhookResponse($adapter);
@@ -1204,20 +1205,21 @@ class Chat
                 }
 
                 $message = $adapter->parseWebhook($request);
-                $this->processMessage($adapter, $message->threadId, $message);
+                $this->processMessage($adapter, $message->threadId, $message, $request);
 
                 return $this->webhookResponse($adapter);
             }
         );
     }
 
-    private function dispatchWebhookEvent(Adapter $adapter, WebhookEvent $event): void
+    private function dispatchWebhookEvent(Adapter $adapter, WebhookEvent $event, ?ServerRequestInterface $request = null): void
     {
         match ($event->type) {
             WebhookEvent::TYPE_MESSAGE => $this->processMessage(
                 adapter: $adapter,
                 threadId: $event->threadId,
                 message: $event->payload,
+                request: $request,
             ),
             WebhookEvent::TYPE_ACTION => $this->processAction(
                 adapter: $adapter,

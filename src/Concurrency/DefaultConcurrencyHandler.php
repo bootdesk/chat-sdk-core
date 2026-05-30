@@ -12,6 +12,7 @@ use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
 use BootDesk\ChatSDK\Core\Lock;
 use BootDesk\ChatSDK\Core\Message;
 use BootDesk\ChatSDK\Core\QueueEntry;
+use Psr\Http\Message\ServerRequestInterface;
 
 class DefaultConcurrencyHandler implements ConcurrencyHandler
 {
@@ -28,6 +29,7 @@ class DefaultConcurrencyHandler implements ConcurrencyHandler
         string $threadId,
         Message $message,
         callable $processCallback,
+        ?ServerRequestInterface $request = null,
     ): void {
         $strategy = Strategy::tryFrom($this->config['concurrency'] ?? 'drop') ?? Strategy::Drop;
         $debounceMs = (int) ($this->config['debounceMs'] ?? 1500);

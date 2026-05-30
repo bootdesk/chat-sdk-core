@@ -13,7 +13,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 ## key contracts (src/Contracts/)
 - `Adapter` — implement for each platform (getName, verifyWebhook, parseWebhook, encodeThreadId, postMessage, etc.)
 - `StateAdapter` — pluggable state backend (locks, subscribe, queue, modal context, key-value)
-- `ConcurrencyHandler` — pluggable concurrency control. Default: `DefaultConcurrencyHandler` (sync strategies with locks/queues/usleep). Framework packages replace with async implementations (e.g., `QueueConcurrencyHandler` in Laravel).
+- `ConcurrencyHandler` — pluggable concurrency control. Default: `DefaultConcurrencyHandler` (sync strategies with locks/queues/usleep). `process()` accepts optional `?ServerRequestInterface $request` — framework packages serialize it for async job processing so `AdapterResolver` receives the original request even in queued context. Framework packages replace with async implementations (e.g., `QueueConcurrencyHandler` in Laravel).
 - `FormatConverter` — platform markdown ↔ CommonMark AST
 - `AdapterResolver` — dynamic adapter resolution (multi-tenant)
 - `FileUploadConverter` — convert binary `FileUpload` to URL-based `Attachment` (for adapters without native uploads)

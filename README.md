@@ -358,7 +358,7 @@ The state adapter handles persistence, pub/sub, locking, and queuing. Methods:
 
 **Locks** are used for concurrency control (drop/queue/debounce strategies). **Queues** store pending messages when `concurrency: queue` is set.
 
-Concurrency is pluggable via `ConcurrencyHandler`. The core provides `DefaultConcurrencyHandler` (sync/blocking with `usleep` for debounce). Framework packages (e.g., Laravel) replace it with async implementations that dispatch jobs to workers. Adapters can declare sync/async preference via `RequiresSyncResponse` and `RequiresAsyncResponse` marker interfaces.
+Concurrency is pluggable via `ConcurrencyHandler`. The core provides `DefaultConcurrencyHandler` (sync/blocking with `usleep` for debounce). Framework packages (e.g., Laravel) replace it with async implementations that dispatch jobs to workers. `ConcurrencyHandler::process()` accepts an optional `?ServerRequestInterface $request` — framework packages can serialize it for jobs so `AdapterResolver` receives the original request in queued context. Adapters can declare sync/async preference via `RequiresSyncResponse` and `RequiresAsyncResponse` marker interfaces.
 
 ## MessageContext
 
