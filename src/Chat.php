@@ -856,6 +856,17 @@ class Chat
         array $skippedMessages = [],
         int $totalSinceLastHandler = 1,
     ): void {
+        $event = new WebhookEvent(
+            type: WebhookEvent::TYPE_MESSAGE,
+            threadId: $threadId,
+            payload: $message,
+            originId: $message->originId,
+        );
+        $adapter = $this->middleware->processWebhookEvent(
+            $event,
+            $adapter,
+            fn (WebhookEvent $e, Adapter $a): Adapter => $a,
+        );
         $this->dispatchIncomingMessage($adapter, $threadId, $message, $skippedMessages, $totalSinceLastHandler);
     }
 

@@ -2034,6 +2034,84 @@ class ChatTest extends TestCase
         $this->assertTrue($called);
     }
 
+    public function test_process_message_in_job_runs_webhook_event_middleware(): void
+    {
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+        );
+        $adapter = new MockAdapter;
+        $chat->registerAdapter('mock', $adapter);
+
+        $middleware = new class implements WebhookEventMiddleware
+        {
+            public bool $called = false;
+
+            public function handle(WebhookEvent $event, Adapter $adapter): Adapter
+            {
+                $this->called = true;
+
+                return $adapter;
+            }
+        };
+        $chat->addWebhookEventMiddleware($middleware);
+
+        $handled = false;
+        $chat->onNewMessage('/.*/', function () use (&$handled) {
+            $handled = true;
+        });
+
+        $chat->processMessageInJob(
+            $adapter,
+            'mock:C:job_mw',
+            \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(id: 'job_mw', threadId: 'mock:C:job_mw'),
+            skippedMessages: [],
+            totalSinceLastHandler: 1,
+        );
+
+        $this->assertTrue($middleware->called);
+        $this->assertTrue($handled);
+    }
+
+    public function test_process_message_in_job_passes_origin_id_to_webhook_event_middleware(): void
+    {
+        $chat = new Chat(
+            state: new MemoryStateAdapter,
+        );
+        $adapter = new MockAdapter;
+        $chat->registerAdapter('mock', $adapter);
+
+        $middleware = new class implements WebhookEventMiddleware
+        {
+            public ?string $capturedOriginId = null;
+
+            public function handle(WebhookEvent $event, Adapter $adapter): Adapter
+            {
+                $this->capturedOriginId = $event->originId;
+
+                return $adapter;
+            }
+        };
+        $chat->addWebhookEventMiddleware($middleware);
+
+        $message = new Message(
+            id: 'job_mw_oid',
+            threadId: 'mock:C:job_mw_oid',
+            author: new Author(id: 'U1'),
+            text: 'with origin',
+            originId: 'page_42',
+        );
+
+        $chat->processMessageInJob(
+            $adapter,
+            'mock:C:job_mw_oid',
+            $message,
+            skippedMessages: [],
+            totalSinceLastHandler: 1,
+        );
+
+        $this->assertSame('page_42', $middleware->capturedOriginId);
+    }
+
     public function test_pattern_skip_stops_further_patterns(): void
     {
         $called = [];
