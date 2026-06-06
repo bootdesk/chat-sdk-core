@@ -9,6 +9,9 @@ use Money\Money;
 
 class Message
 {
+    /** @var array<string, mixed> */
+    public array $extras = [];
+
     /**
      * @param  Attachment[]  $attachments
      */

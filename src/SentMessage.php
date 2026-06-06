@@ -11,6 +11,9 @@ class SentMessage
     /** @var SentMessage[] */
     public readonly array $additionalMessages;
 
+    /** @var array<string, mixed> */
+    public array $extras = [];
+
     /**
      * @param  SentMessage[]  $additionalMessages
      */
