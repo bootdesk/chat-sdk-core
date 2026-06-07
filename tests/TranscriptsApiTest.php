@@ -4,20 +4,21 @@ namespace BootDesk\ChatSDK\Core\Tests;
 
 use BootDesk\ChatSDK\Core\Author;
 use BootDesk\ChatSDK\Core\Message;
+use BootDesk\ChatSDK\Core\SentMessage;
 use BootDesk\ChatSDK\Core\Tests\Helpers\MemoryStateAdapter;
-use BootDesk\ChatSDK\Core\TranscriptsApi;
+use BootDesk\ChatSDK\Core\Transcript\DefaultTranscriptsApi;
 use PHPUnit\Framework\TestCase;
 
 class TranscriptsApiTest extends TestCase
 {
     private MemoryStateAdapter $state;
 
-    private TranscriptsApi $transcripts;
+    private DefaultTranscriptsApi $transcripts;
 
     protected function setUp(): void
     {
         $this->state = new MemoryStateAdapter;
-        $this->transcripts = new TranscriptsApi($this->state, [
+        $this->transcripts = new DefaultTranscriptsApi($this->state, [
             'max_messages' => 5,
             'ttl_ms' => 3600000,
         ]);
@@ -33,6 +34,15 @@ class TranscriptsApiTest extends TestCase
         );
     }
 
+    private function makeSentMessage(string $id, string $text): SentMessage
+    {
+        return new SentMessage(
+            id: $id,
+            threadId: 'mock:C123:456',
+            timestamp: (string) time(),
+        );
+    }
+
     public function test_append_and_list(): void
     {
         $this->transcripts->append('user:U1', $this->makeMessage('Hello'));
@@ -42,6 +52,27 @@ class TranscriptsApiTest extends TestCase
         $this->assertCount(2, $entries);
         $this->assertSame('Hello', $entries[0]['text']);
         $this->assertSame('World', $entries[1]['text']);
+    }
+
+    public function test_append_direction(): void
+    {
+        $this->transcripts->append('user:U1', $this->makeMessage('Hello'));
+        $msg = $this->makeSentMessage('sent_1', 'Hi there');
+        $this->transcripts->appendOutgoing('user:U1', $msg, 'Hi there');
+
+        $entries = $this->transcripts->list('user:U1');
+        $this->assertCount(2, $entries);
+        $this->assertSame('incoming', $entries[0]['direction']);
+        $this->assertSame('outgoing', $entries[1]['direction']);
+    }
+
+    public function test_append_outgoing_uses_bot_author(): void
+    {
+        $msg = $this->makeSentMessage('sent_1', 'Hello world');
+        $this->transcripts->appendOutgoing('user:U1', $msg, 'Hello world');
+
+        $entries = $this->transcripts->list('user:U1');
+        $this->assertSame('bot', $entries[0]['authorId']);
     }
 
     public function test_count(): void

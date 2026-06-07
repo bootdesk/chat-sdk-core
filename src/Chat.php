@@ -17,10 +17,12 @@ use BootDesk\ChatSDK\Core\Contracts\HandlesSlackEvents;
 use BootDesk\ChatSDK\Core\Contracts\HandlesSlashCommands;
 use BootDesk\ChatSDK\Core\Contracts\HandlesStatuses;
 use BootDesk\ChatSDK\Core\Contracts\HeardMiddleware;
+use BootDesk\ChatSDK\Core\Contracts\IdentityResolver;
 use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
+use BootDesk\ChatSDK\Core\Contracts\TranscriptsApi as TranscriptsApiContract;
 use BootDesk\ChatSDK\Core\Contracts\WebhookEventMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\WebhookMiddleware;
 use BootDesk\ChatSDK\Core\Conversations\ConversationManager;
@@ -31,6 +33,8 @@ use BootDesk\ChatSDK\Core\Events\MentionEvent;
 use BootDesk\ChatSDK\Core\Events\SubscribedEvent;
 use BootDesk\ChatSDK\Core\Exceptions\ResourceNotFoundException;
 use BootDesk\ChatSDK\Core\Middleware\MiddlewareDispatcher;
+use BootDesk\ChatSDK\Core\Transcript\DefaultTranscriptsApi;
+use BootDesk\ChatSDK\Core\Transcript\TranscriptSentMiddleware;
 use Money\Money;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -53,9 +57,9 @@ class Chat
 
     private bool $stateInitialized = false;
 
-    private ?\Closure $identityResolver = null;
+    private ?IdentityResolver $identityResolver = null;
 
-    private ?TranscriptsApi $transcriptsApi = null;
+    private ?TranscriptsApiContract $transcriptsApi = null;
 
     private readonly ListenerProvider $listenerProvider;
 
@@ -79,8 +83,8 @@ class Chat
         array $config = [],
         ?AdapterResolver $adapterResolver = null,
         ?ResponseFactoryInterface $responseFactory = null,
-        ?callable $identity = null,
-        ?array $transcripts = null,
+        ?IdentityResolver $identity = null,
+        null|array|TranscriptsApiContract $transcripts = null,
         ?BroadcastAdapter $broadcaster = null,
         ?ConcurrencyHandler $concurrencyHandler = null,
     ) {
@@ -97,19 +101,23 @@ class Chat
         $this->middleware = new MiddlewareDispatcher;
         $this->concurrencyHandler = $concurrencyHandler ?? new DefaultConcurrencyHandler($state, $config);
 
-        if ($identity !== null) {
-            $this->identityResolver = $identity instanceof \Closure ? $identity : \Closure::fromCallable($identity);
-        }
+        $this->identityResolver = $identity;
 
-        if ($transcripts !== null) {
-            if (! $this->identityResolver instanceof \Closure) {
+        if ($transcripts instanceof TranscriptsApiContract) {
+            $this->transcriptsApi = $transcripts;
+        } elseif (is_array($transcripts)) {
+            if (! $this->identityResolver instanceof IdentityResolver) {
                 throw new \InvalidArgumentException('transcripts config requires identity resolver');
             }
-            $this->transcriptsApi = new TranscriptsApi($this->state, $transcripts);
+            $this->transcriptsApi = new DefaultTranscriptsApi($this->state, $transcripts);
+        }
+
+        if ($this->transcriptsApi instanceof TranscriptsApiContract) {
+            $this->addSentMiddleware(new TranscriptSentMiddleware($this->transcriptsApi, $this->state));
         }
     }
 
-    public function getTranscripts(): ?TranscriptsApi
+    public function getTranscripts(): ?TranscriptsApiContract
     {
         return $this->transcriptsApi;
     }
@@ -126,9 +134,7 @@ class Chat
 
     public function resolveIdentity(Author $author): ?string
     {
-        return $this->identityResolver instanceof \Closure
-            ? ($this->identityResolver)($author)
-            : null;
+        return $this->identityResolver?->resolve($author);
     }
 
     public function resolveAdapter(string $name, ?ServerRequestInterface $request = null): ?Adapter
@@ -882,11 +888,10 @@ class Chat
         }
 
         // Persist to transcripts
-        if ($this->transcriptsApi instanceof TranscriptsApi) {
-            $userKey = $this->resolveIdentity($message->author);
-            if ($userKey !== null) {
-                $this->transcriptsApi->append($userKey, $message);
-            }
+        $userKey = $this->resolveIdentity($message->author);
+        if ($this->transcriptsApi instanceof TranscriptsApiContract && $userKey !== null) {
+            $this->transcriptsApi->append($userKey, $message);
+            $this->state->set("transcript_user:{$threadId}", $userKey, 86400_000);
         }
 
         $context = new MessageContext(

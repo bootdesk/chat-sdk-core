@@ -11,6 +11,7 @@ use BootDesk\ChatSDK\Core\Channel;
 use BootDesk\ChatSDK\Core\Chat;
 use BootDesk\ChatSDK\Core\Concurrency\DefaultConcurrencyHandler;
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
+use BootDesk\ChatSDK\Core\Contracts\IdentityResolver;
 use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
@@ -798,10 +799,18 @@ class ChatTest extends TestCase
 
     public function test_constructor_with_transcripts(): void
     {
+        $identity = new class implements IdentityResolver
+        {
+            public function resolve(Author $author): ?string
+            {
+                return $author->id;
+            }
+        };
+
         $chat = new Chat(
             state: new MemoryStateAdapter,
             adapters: ['mock' => new MockAdapter],
-            identity: fn (Author $a) => $a->id,
+            identity: $identity,
             transcripts: ['max_messages' => 10],
         );
         $this->assertNotNull($chat->getTranscripts());
@@ -1210,10 +1219,18 @@ class ChatTest extends TestCase
 
     public function test_process_message_with_transcripts(): void
     {
+        $identity = new class implements IdentityResolver
+        {
+            public function resolve(Author $author): ?string
+            {
+                return $author->id;
+            }
+        };
+
         $chat = new Chat(
             state: new MemoryStateAdapter,
             adapters: ['mock' => $this->adapter],
-            identity: fn (Author $a) => $a->id,
+            identity: $identity,
             transcripts: ['max_messages' => 100],
         );
 
@@ -1226,6 +1243,40 @@ class ChatTest extends TestCase
         $chat->processMessage($this->adapter, $message->threadId, $message);
 
         $this->assertTrue($received);
+    }
+
+    public function test_process_message_with_transcripts_append_outgoing(): void
+    {
+        $identity = new class implements IdentityResolver
+        {
+            public function resolve(Author $author): ?string
+            {
+                return $author->id;
+            }
+        };
+
+        $state = new MemoryStateAdapter;
+        $adapter = new MockAdapter;
+        $chat = new Chat(
+            state: $state,
+            adapters: ['mock' => $adapter],
+            identity: $identity,
+            transcripts: ['max_messages' => 100],
+        );
+
+        $chat->onNewMessage('/.*/', function (MessageContext $ctx) {
+            $ctx->thread->post('thank you');
+        });
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage();
+        $chat->processMessage($adapter, $message->threadId, $message);
+
+        $entries = $chat->getTranscripts()->list('U123');
+        $this->assertCount(2, $entries);
+        $this->assertSame('incoming', $entries[0]['direction']);
+        $this->assertSame('hello', $entries[0]['text']);
+        $this->assertSame('outgoing', $entries[1]['direction']);
+        $this->assertSame('thank you', $entries[1]['text']);
     }
 
     public function test_concurrent_strategy_processes_under_capacity(): void

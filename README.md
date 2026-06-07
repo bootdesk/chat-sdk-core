@@ -367,6 +367,36 @@ Passed to every event handler.
 - **Properties:** `thread`, `message`, `transcripts`
 - **Methods:** `skip()`, `setState()`, `getState()`
 
+## Transcripts
+
+Per-user message history. Configure via `$transcripts` param on `Chat` constructor. Requires an `IdentityResolver`.
+
+```php
+use BootDesk\ChatSDK\Core\Contracts\IdentityResolver;
+use BootDesk\ChatSDK\Core\Contracts\TranscriptsApi;
+
+// Pass an IdentityResolver + config array — creates DefaultTranscriptsApi
+$chat = new Chat(
+    state: $state,
+    identity: new class implements IdentityResolver {
+        public function resolve(Author $author): ?string { return $author->id; }
+    },
+    transcripts: ['max_messages' => 100, 'ttl_ms' => 2592000000],
+);
+
+// Or pass a pre-built TranscriptsApi instance (for custom impls)
+$chat = new Chat(
+    state: $state,
+    identity: $resolver,
+    transcripts: new MyCustomTranscriptsApi($state),
+);
+```
+
+- Incoming messages auto-recorded in `dispatchIncomingMessage()`
+- Outgoing replies auto-recorded via `TranscriptSentMiddleware` (wired automatically)
+- Access via `$chat->getTranscripts()` or `$context->transcripts` in handlers
+- Methods: `append(userKey, Message)`, `appendOutgoing(userKey, SentMessage, text)`, `list(userKey)`, `count(userKey)`, `delete(userKey)`
+
 ## Event handlers
 
 | Method                      | Pattern    | Description                       |

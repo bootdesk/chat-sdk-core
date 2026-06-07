@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BootDesk\ChatSDK\Core;
 
+use BootDesk\ChatSDK\Core\Contracts\TranscriptsApi;
+
 class MessageContext
 {
     private bool $skipped = false;

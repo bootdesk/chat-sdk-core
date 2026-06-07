@@ -14,6 +14,8 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `Adapter` — implement for each platform (getName, verifyWebhook, parseWebhook, encodeThreadId, postMessage, etc.)
 - `StateAdapter` — pluggable state backend (locks, subscribe, queue, modal context, key-value)
 - `ConcurrencyHandler` — pluggable concurrency control. Default: `DefaultConcurrencyHandler` (sync strategies with locks/queues/usleep). `process()` accepts optional `?ServerRequestInterface $request` — framework packages serialize it for async job processing so `AdapterResolver` receives the original request even in queued context. Framework packages replace with async implementations (e.g., `QueueConcurrencyHandler` in Laravel).
+- `TranscriptsApi` — per-user message history (append, list, count, delete); `DefaultTranscriptsApi` in `Transcript/`
+- `IdentityResolver` — resolves `Author` → user key string for transcripts
 - `FormatConverter` — platform markdown ↔ CommonMark AST
 - `AdapterResolver` — dynamic adapter resolution (multi-tenant)
 - `FileUploadConverter` — convert binary `FileUpload` to URL-based `Attachment` (for adapters without native uploads)
@@ -49,6 +51,13 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `Modals/TextInput`, `Modals/Select`, `Modals/ExternalSelect`, `Modals/RadioSelect`, `Modals/SelectOption`
 - Platform-agnostic value objects converted to platform-native via each adapter
 - Slack uses `SlackModalConverter` to convert to Block Kit views
+
+## transcripts
+- `Contracts/TranscriptsApi` — interface for per-user message history
+- `Transcript/DefaultTranscriptsApi` — state-backed impl, stores entries with `direction: 'incoming'|'outgoing'`
+- `Transcript/TranscriptSentMiddleware` — auto-wired `SentMiddleware` that records outgoing bot replies
+- Incoming messages recorded in `Chat::dispatchIncomingMessage()`; outgoing recorded via `TranscriptSentMiddleware` using `transcript_user:{threadId}` state mapping
+- Override by passing a `TranscriptsApi` instance directly to `Chat` constructor's `$transcripts` param
 
 ## concerns
 - `Concerns/OpensModals` — trait used by `ActionEvent` and `SlashCommandEvent` to expose `openModal(Modal $modal): ?array`
