@@ -21,7 +21,7 @@ use Psr\Http\Message\ServerRequestInterface;
 
 final class MiddlewareDispatcher
 {
-    /** @var array{webhook: WebhookMiddleware[], receiving: ReceivingMiddleware[], sending: SendingMiddleware[], webhook_event: WebhookEventMiddleware[], sent: SentMiddleware[], heard: HeardMiddleware[]} */
+    /** @var array{webhook: array<array{0: object, 1: int}>, receiving: array<array{0: object, 1: int}>, sending: array<array{0: object, 1: int}>, webhook_event: array<array{0: object, 1: int}>, sent: array<array{0: object, 1: int}>, heard: array<array{0: object, 1: int}>} */
     private array $middlewares = [
         'webhook' => [],
         'receiving' => [],
@@ -31,34 +31,50 @@ final class MiddlewareDispatcher
         'heard' => [],
     ];
 
-    public function addWebhook(WebhookMiddleware $middleware): void
+    /** @var array<string, bool> */
+    private array $sorted = [
+        'webhook' => true,
+        'receiving' => true,
+        'sending' => true,
+        'webhook_event' => true,
+        'sent' => true,
+        'heard' => true,
+    ];
+
+    public function addWebhook(WebhookMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['webhook'][] = $middleware;
+        $this->middlewares['webhook'][] = [$middleware, $priority];
+        $this->sorted['webhook'] = false;
     }
 
-    public function addReceiving(ReceivingMiddleware $middleware): void
+    public function addReceiving(ReceivingMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['receiving'][] = $middleware;
+        $this->middlewares['receiving'][] = [$middleware, $priority];
+        $this->sorted['receiving'] = false;
     }
 
-    public function addSending(SendingMiddleware $middleware): void
+    public function addSending(SendingMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['sending'][] = $middleware;
+        $this->middlewares['sending'][] = [$middleware, $priority];
+        $this->sorted['sending'] = false;
     }
 
-    public function addWebhookEvent(WebhookEventMiddleware $middleware): void
+    public function addWebhookEvent(WebhookEventMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['webhook_event'][] = $middleware;
+        $this->middlewares['webhook_event'][] = [$middleware, $priority];
+        $this->sorted['webhook_event'] = false;
     }
 
-    public function addSent(SentMiddleware $middleware): void
+    public function addSent(SentMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['sent'][] = $middleware;
+        $this->middlewares['sent'][] = [$middleware, $priority];
+        $this->sorted['sent'] = false;
     }
 
-    public function addHeard(HeardMiddleware $middleware): void
+    public function addHeard(HeardMiddleware $middleware, int $priority = 0): void
     {
-        $this->middlewares['heard'][] = $middleware;
+        $this->middlewares['heard'][] = [$middleware, $priority];
+        $this->sorted['heard'] = false;
     }
 
     /**
@@ -67,7 +83,9 @@ final class MiddlewareDispatcher
      */
     public function getMiddlewares(string $type): array
     {
-        return $this->middlewares[$type];
+        $this->ensureSorted($type);
+
+        return array_map(fn (array $entry): object => $entry[0], $this->middlewares[$type]);
     }
 
     /**
@@ -75,6 +93,7 @@ final class MiddlewareDispatcher
      */
     public function processWebhookEvent(WebhookEvent $event, Adapter $adapter, callable $handler): Adapter
     {
+        $this->ensureSorted('webhook_event');
         $middlewares = $this->middlewares['webhook_event'];
 
         if ($middlewares === []) {
@@ -83,8 +102,8 @@ final class MiddlewareDispatcher
 
         $current = $adapter;
 
-        foreach ($middlewares as $middleware) {
-            $current = $middleware->handle($event, $current);
+        foreach ($middlewares as $entry) {
+            $current = $entry[0]->handle($event, $current);
         }
 
         return $handler($event, $current);
@@ -139,6 +158,7 @@ final class MiddlewareDispatcher
      */
     private function process(string $type, mixed $context, callable $handler): mixed
     {
+        $this->ensureSorted($type);
         $middlewares = $this->middlewares[$type];
 
         if ($middlewares === []) {
@@ -149,13 +169,14 @@ final class MiddlewareDispatcher
     }
 
     /**
-     * @param  array<object>  $middlewares
+     * @param  array<array{0: object, 1: int}>  $middlewares
      */
     private function buildPipeline(array $middlewares, mixed $context, callable $handler): mixed
     {
         $pipeline = $handler;
 
-        foreach (array_reverse($middlewares) as $middleware) {
+        foreach (array_reverse($middlewares) as $entry) {
+            $middleware = $entry[0];
             $prev = $pipeline;
             $pipeline = fn (...$args): mixed => $this->callMiddleware($middleware, $args, $prev);
         }
@@ -172,5 +193,15 @@ final class MiddlewareDispatcher
             callback: [$m, 'handle'],
             args: [...$args, $next]
         );
+    }
+
+    private function ensureSorted(string $type): void
+    {
+        if ($this->sorted[$type]) {
+            return;
+        }
+
+        usort($this->middlewares[$type], fn (array $a, array $b): int => $b[1] <=> $a[1]);
+        $this->sorted[$type] = true;
     }
 }

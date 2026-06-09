@@ -2337,4 +2337,189 @@ class ChatTest extends TestCase
         $this->assertSame('/hello/', $middleware->lastPattern);
         $this->assertFalse($received);
     }
+
+    public function test_middleware_priority_higher_runs_earlier(): void
+    {
+        $order = [];
+
+        $low = new class($order) implements SendingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'low';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+
+        $high = new class($order) implements SendingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'high';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+
+        $this->chat->addSendingMiddleware($low, 0);
+        $this->chat->addSendingMiddleware($high, 10);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertSame(['high', 'low'], $order);
+    }
+
+    public function test_middleware_priority_same_maintains_insertion_order(): void
+    {
+        $order = [];
+
+        $first = new class($order) implements SentMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, SentMessage $result, Adapter $adapter, string $operation, callable $next): SentMessage
+            {
+                $this->order[] = 'first';
+
+                return $next($threadId, $message, $result, $adapter, $operation);
+            }
+        };
+
+        $second = new class($order) implements SentMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, SentMessage $result, Adapter $adapter, string $operation, callable $next): SentMessage
+            {
+                $this->order[] = 'second';
+
+                return $next($threadId, $message, $result, $adapter, $operation);
+            }
+        };
+
+        $this->chat->addSentMiddleware($first, 0);
+        $this->chat->addSentMiddleware($second, 0);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertSame(['first', 'second'], $order);
+    }
+
+    public function test_middleware_priority_negative_runs_later(): void
+    {
+        $order = [];
+
+        $negative = new class($order) implements SendingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'negative';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+
+        $default = new class($order) implements SendingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(string $threadId, PostableMessage $message, Adapter $adapter, string $operation, callable $next): ?PostableMessage
+            {
+                $this->order[] = 'default';
+
+                return $next($threadId, $message, $adapter, $operation);
+            }
+        };
+
+        $this->chat->addSendingMiddleware($negative, -10);
+        $this->chat->addSendingMiddleware($default, 0);
+
+        $thread = $this->chat->thread('mock:C123:456');
+        $thread->post('Hello');
+
+        $this->assertSame(['default', 'negative'], $order);
+    }
+
+    public function test_middleware_priority_webhook_event(): void
+    {
+        $order = [];
+
+        $low = new class($order) implements WebhookEventMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(WebhookEvent $event, Adapter $adapter): Adapter
+            {
+                $this->order[] = 'low';
+
+                return $adapter;
+            }
+        };
+
+        $high = new class($order) implements WebhookEventMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(WebhookEvent $event, Adapter $adapter): Adapter
+            {
+                $this->order[] = 'high';
+
+                return $adapter;
+            }
+        };
+
+        $this->chat->addWebhookEventMiddleware($low, 0);
+        $this->chat->addWebhookEventMiddleware($high, 5);
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(text: 'hello');
+        $this->chat->processMessageInJob($this->adapter, $message->threadId, $message);
+
+        $this->assertSame(['high', 'low'], $order);
+    }
+
+    public function test_middleware_priority_receiving(): void
+    {
+        $order = [];
+
+        $low = new class($order) implements ReceivingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(?Message $message, Adapter $adapter, callable $next): ?Message
+            {
+                $this->order[] = 'low';
+
+                return $next($message, $adapter);
+            }
+        };
+
+        $high = new class($order) implements ReceivingMiddleware
+        {
+            public function __construct(public array &$order) {}
+
+            public function handle(?Message $message, Adapter $adapter, callable $next): ?Message
+            {
+                $this->order[] = 'high';
+
+                return $next($message, $adapter);
+            }
+        };
+
+        $this->chat->addReceivingMiddleware($low, 0);
+        $this->chat->addReceivingMiddleware($high, 10);
+
+        $message = \BootDesk\ChatSDK\Core\Tests\Helpers\createTestMessage(text: 'hello');
+        $this->chat->processMessage($this->adapter, $message->threadId, $message);
+
+        $this->assertSame(['high', 'low'], $order);
+    }
 }

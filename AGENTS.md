@@ -19,7 +19,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `FormatConverter` — platform markdown ↔ CommonMark AST
 - `AdapterResolver` — dynamic adapter resolution (multi-tenant)
 - `FileUploadConverter` — convert binary `FileUpload` to URL-based `Attachment` (for adapters without native uploads)
-- `ReceivingMiddleware` / `SendingMiddleware` / `WebhookMiddleware` / `WebhookEventMiddleware` / `SentMiddleware` / `HeardMiddleware` — middleware pipeline
+- `ReceivingMiddleware` / `SendingMiddleware` / `WebhookMiddleware` / `WebhookEventMiddleware` / `SentMiddleware` / `HeardMiddleware` — middleware pipeline. All `Chat::add*Middleware()` methods accept optional `int $priority` (default `0`, higher = earlier). `MiddlewareDispatcher` sorts lazily by priority descending with stable insertion order. Built-in `TranscriptSentMiddleware` registered at `-100`.
 - `HandlesActions` / `HandlesSlashCommands` / `HandlesReactions` — optional adapter contracts for incoming events
 - `HandlesModals` / `HandlesOptionsLoad` / `HandlesSlackEvents` — optional adapter contracts for modals, external selects, Slack events
 - `SupportsModals` — optional adapter contract for opening modals from handlers

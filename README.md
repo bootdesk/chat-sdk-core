@@ -287,11 +287,21 @@ $chat->conversationManager->start(OrderConversation::class, $thread, $message);
 
 ## Middleware
 
-Three middleware interfaces for intercepting different stages:
+Six middleware interfaces for intercepting different stages:
 
 - **ReceivingMiddleware** -- Intercept inbound messages before handlers run
 - **SendingMiddleware** -- Intercept outbound messages before they are delivered
 - **WebhookMiddleware** -- Intercept raw webhook payloads before parsing
+- **SentMiddleware** -- Act after a message has been sent
+- **HeardMiddleware** -- Fire after a pattern matches, before the handler runs
+- **WebhookEventMiddleware** -- Swap adapter per-event in batched webhooks
+
+All `add*Middleware()` methods accept an optional `int $priority` parameter (default `0`). Higher values execute earlier. When omitted or equal, insertion order is preserved.
+
+```php
+$chat->addReceivingMiddleware($auditLog, priority: 100);  // runs first
+$chat->addReceivingMiddleware($transform);                  // runs second (priority 0)
+```
 
 ## Extending Adapters
 

@@ -113,7 +113,7 @@ class Chat
         }
 
         if ($this->transcriptsApi instanceof TranscriptsApiContract) {
-            $this->addSentMiddleware(new TranscriptSentMiddleware($this->transcriptsApi, $this->state));
+            $this->addSentMiddleware(new TranscriptSentMiddleware($this->transcriptsApi, $this->state), -100);
         }
     }
 
@@ -1386,44 +1386,44 @@ class Chat
         $this->stateInitialized = false;
     }
 
-    public function addWebhookMiddleware(WebhookMiddleware $middleware): self
+    public function addWebhookMiddleware(WebhookMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addWebhook($middleware);
+        $this->middleware->addWebhook($middleware, $priority);
 
         return $this;
     }
 
-    public function addReceivingMiddleware(ReceivingMiddleware $middleware): self
+    public function addReceivingMiddleware(ReceivingMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addReceiving($middleware);
+        $this->middleware->addReceiving($middleware, $priority);
 
         return $this;
     }
 
-    public function addSendingMiddleware(SendingMiddleware $middleware): self
+    public function addSendingMiddleware(SendingMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addSending($middleware);
+        $this->middleware->addSending($middleware, $priority);
 
         return $this;
     }
 
-    public function addWebhookEventMiddleware(WebhookEventMiddleware $middleware): self
+    public function addWebhookEventMiddleware(WebhookEventMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addWebhookEvent($middleware);
+        $this->middleware->addWebhookEvent($middleware, $priority);
 
         return $this;
     }
 
-    public function addSentMiddleware(SentMiddleware $middleware): self
+    public function addSentMiddleware(SentMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addSent($middleware);
+        $this->middleware->addSent($middleware, $priority);
 
         return $this;
     }
 
-    public function addHeardMiddleware(HeardMiddleware $middleware): self
+    public function addHeardMiddleware(HeardMiddleware $middleware, int $priority = 0): self
     {
-        $this->middleware->addHeard($middleware);
+        $this->middleware->addHeard($middleware, $priority);
 
         return $this;
     }
