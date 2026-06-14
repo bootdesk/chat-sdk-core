@@ -2,14 +2,16 @@
 
 namespace BootDesk\ChatSDK\Core\Conversations;
 
+use BootDesk\ChatSDK\Core\Cards\Card;
 use BootDesk\ChatSDK\Core\Message;
+use BootDesk\ChatSDK\Core\PostableMessage;
 use BootDesk\ChatSDK\Core\Thread;
 
 abstract class Conversation
 {
     protected function ask(
         Thread $thread,
-        string $question,
+        string|PostableMessage|Card $question,
         string $next,
         array $data = [],
     ): AskResponse {
@@ -28,7 +30,7 @@ abstract class Conversation
         return new AskResponse($thread);
     }
 
-    protected function say(Thread $thread, string $text): void
+    protected function say(Thread $thread, string|PostableMessage|Card $text): void
     {
         $thread->post($text);
     }
