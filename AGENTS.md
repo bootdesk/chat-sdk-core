@@ -85,6 +85,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `Attachment` — URL-based media value object (type, url, name, mimeType, size, fetchData, fetchMetadata)
 - `Attachment::fetchData` — typed `(callable(Attachment): StreamInterface)|null` via PHPDoc. Constructor rejects non-null, non-callable values. Stores `[$adapter, 'fetchMedia']` pattern (no closures) for serialization safety.
 - `Attachment::read(): ?StreamInterface` — calls `($this->fetchData)($this)` if fetchData is set. Returns PSR-7 StreamInterface for reading attachment body.
+- `Attachment::withFetchOptions(callable $fetchData, ?array $fetchMetadata = null): self` — immutable helper that creates new Attachment with same type/url/name/mimeType/size/width/height but overridden fetchData/fetchMetadata. When fetchMetadata is null, preserves existing metadata from original.
 - `Attachment::__serialize()` — excludes `fetchData` (not serializable). Only `fetchMetadata` survives serialization.
 - `Attachment::__unserialize()` — restores props, sets `fetchData = null`. Adapter's `MustRehydrateAttachments::rehydrateAttachment()` restores it after deserialization.
 - `FileUpload` — binary file upload value object (data, filename, mimeType); supports resource or string data

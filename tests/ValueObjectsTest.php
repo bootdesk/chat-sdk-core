@@ -36,6 +36,7 @@ use League\CommonMark\Parser\MarkdownParser;
 use Money\Currency;
 use Money\Money;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\StreamInterface;
 
 class ValueObjectsTest extends TestCase
 {
@@ -428,6 +429,35 @@ class ValueObjectsTest extends TestCase
         $this->assertSame('image', $att->type);
         $this->assertSame('https://example.com/photo.jpg', $att->url);
         $this->assertSame('Photo', $att->name);
+    }
+
+    public function test_attachment_with_fetch_options(): void
+    {
+        $att = new Attachment(type: 'image', url: 'https://example.com/photo.jpg', name: 'Photo', mimeType: 'image/jpeg', size: 1024, width: 100, height: 200, fetchMetadata: ['old' => 'meta']);
+
+        $callback = fn (Attachment $a): StreamInterface => throw new \RuntimeException('not called');
+        $with = $att->withFetchOptions(fetchData: $callback, fetchMetadata: ['new' => 'meta']);
+
+        $this->assertNotSame($att, $with);
+        $this->assertSame('image', $with->type);
+        $this->assertSame('https://example.com/photo.jpg', $with->url);
+        $this->assertSame('Photo', $with->name);
+        $this->assertSame('image/jpeg', $with->mimeType);
+        $this->assertSame(1024, $with->size);
+        $this->assertSame(100, $with->width);
+        $this->assertSame(200, $with->height);
+        $this->assertSame($callback, $with->fetchData);
+        $this->assertSame(['new' => 'meta'], $with->fetchMetadata);
+    }
+
+    public function test_attachment_with_fetch_options_preserves_metadata_when_null(): void
+    {
+        $att = new Attachment(type: 'file', url: 'https://example.com/doc.pdf', fetchMetadata: ['file_id' => 'abc123']);
+        $callback = fn (Attachment $a): StreamInterface => throw new \RuntimeException('not called');
+
+        $with = $att->withFetchOptions(fetchData: $callback);
+
+        $this->assertSame(['file_id' => 'abc123'], $with->fetchMetadata);
     }
 
     public function test_null_file_upload_converter_throws(): void

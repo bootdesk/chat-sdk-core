@@ -38,6 +38,22 @@ class Attachment
         return ($this->fetchData)($this);
     }
 
+    /** @param callable(Attachment): StreamInterface $fetchData */
+    public function withFetchOptions(callable $fetchData, ?array $fetchMetadata = null): self
+    {
+        return new self(
+            type: $this->type,
+            url: $this->url,
+            name: $this->name,
+            mimeType: $this->mimeType,
+            size: $this->size,
+            width: $this->width,
+            height: $this->height,
+            fetchData: $fetchData,
+            fetchMetadata: $fetchMetadata ?? $this->fetchMetadata,
+        );
+    }
+
     public function __serialize(): array
     {
         return [
