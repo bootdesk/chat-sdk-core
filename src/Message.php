@@ -28,4 +28,27 @@ class Message
         public readonly ?string $originId = null,
         public readonly ?Money $price = null,
     ) {}
+
+    /**
+     * @param  Attachment[]  $attachments
+     */
+    public function replaceAttachments(array $attachments): self
+    {
+        $instance = new self(
+            id: $this->id,
+            threadId: $this->threadId,
+            author: $this->author,
+            text: $this->text,
+            formatted: $this->formatted,
+            attachments: $attachments,
+            isMention: $this->isMention,
+            isDM: $this->isDM,
+            raw: $this->raw,
+            originId: $this->originId,
+            price: $this->price,
+        );
+        $instance->extras = $this->extras;
+
+        return $instance;
+    }
 }

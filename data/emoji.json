@@ -1,0 +1,422 @@
+{
+  "thumbs_up": {
+    "slack": ["+1", "thumbsup"],
+    "gchat": ["👍"],
+    "github": ["+1"]
+  },
+  "thumbs_down": {
+    "slack": ["-1", "thumbsdown"],
+    "gchat": ["👎"],
+    "github": ["-1"]
+  },
+  "clap": {
+    "slack": ["clap"],
+    "gchat": ["👏"]
+  },
+  "wave": {
+    "slack": ["wave"],
+    "gchat": ["👋"]
+  },
+  "pray": {
+    "slack": ["pray"],
+    "gchat": ["🙏"]
+  },
+  "muscle": {
+    "slack": ["muscle"],
+    "gchat": ["💪"]
+  },
+  "ok_hand": {
+    "slack": ["ok_hand"],
+    "gchat": ["👌"]
+  },
+  "point_up": {
+    "slack": ["point_up"],
+    "gchat": ["👆"]
+  },
+  "point_down": {
+    "slack": ["point_down"],
+    "gchat": ["👇"]
+  },
+  "point_left": {
+    "slack": ["point_left"],
+    "gchat": ["👈"]
+  },
+  "point_right": {
+    "slack": ["point_right"],
+    "gchat": ["👉"]
+  },
+  "raised_hands": {
+    "slack": ["raised_hands"],
+    "gchat": ["🙌"]
+  },
+  "shrug": {
+    "slack": ["shrug"],
+    "gchat": ["🤷"]
+  },
+  "facepalm": {
+    "slack": ["facepalm"],
+    "gchat": ["🤦"]
+  },
+  "heart": {
+    "slack": ["heart"],
+    "gchat": ["❤️", "❤"],
+    "github": ["heart"]
+  },
+  "smile": {
+    "slack": ["smile", "slightly_smiling_face"],
+    "gchat": ["😊"],
+    "github": ["laugh"]
+  },
+  "laugh": {
+    "slack": ["laughing", "satisfied", "joy"],
+    "gchat": ["😂", "😆"],
+    "github": ["laugh"]
+  },
+  "thinking": {
+    "slack": ["thinking_face"],
+    "gchat": ["🤔"],
+    "github": ["confused"]
+  },
+  "sad": {
+    "slack": ["cry", "sad", "white_frowning_face"],
+    "gchat": ["😢"]
+  },
+  "cry": {
+    "slack": ["sob"],
+    "gchat": ["😭"]
+  },
+  "angry": {
+    "slack": ["angry"],
+    "gchat": ["😠"]
+  },
+  "love_eyes": {
+    "slack": ["heart_eyes"],
+    "gchat": ["😍"],
+    "github": ["heart"]
+  },
+  "cool": {
+    "slack": ["sunglasses"],
+    "gchat": ["😎"]
+  },
+  "wink": {
+    "slack": ["wink"],
+    "gchat": ["😉"]
+  },
+  "surprised": {
+    "slack": ["open_mouth"],
+    "gchat": ["😮"]
+  },
+  "worried": {
+    "slack": ["worried"],
+    "gchat": ["😟"]
+  },
+  "confused": {
+    "slack": ["confused"],
+    "gchat": ["😕"],
+    "github": ["confused"]
+  },
+  "neutral": {
+    "slack": ["neutral_face"],
+    "gchat": ["😐"]
+  },
+  "sleeping": {
+    "slack": ["sleeping"],
+    "gchat": ["😴"]
+  },
+  "sick": {
+    "slack": ["nauseated_face"],
+    "gchat": ["🤢"]
+  },
+  "mind_blown": {
+    "slack": ["exploding_head"],
+    "gchat": ["🤯"]
+  },
+  "relieved": {
+    "slack": ["relieved"],
+    "gchat": ["😌"]
+  },
+  "grimace": {
+    "slack": ["grimacing"],
+    "gchat": ["😬"]
+  },
+  "rolling_eyes": {
+    "slack": ["rolling_eyes"],
+    "gchat": ["🙄"]
+  },
+  "hug": {
+    "slack": ["hugging_face"],
+    "gchat": ["🤗"]
+  },
+  "zany": {
+    "slack": ["zany_face"],
+    "gchat": ["🤪"]
+  },
+  "check": {
+    "slack": ["white_check_mark", "heavy_check_mark"],
+    "gchat": ["✅", "✔️"]
+  },
+  "x": {
+    "slack": ["x", "heavy_multiplication_x"],
+    "gchat": ["❌", "✖️"]
+  },
+  "question": {
+    "slack": ["question"],
+    "gchat": ["❓", "?"]
+  },
+  "exclamation": {
+    "slack": ["exclamation"],
+    "gchat": ["❗"]
+  },
+  "warning": {
+    "slack": ["warning"],
+    "gchat": ["⚠️"]
+  },
+  "stop": {
+    "slack": ["octagonal_sign"],
+    "gchat": ["🛑"]
+  },
+  "info": {
+    "slack": ["information_source"],
+    "gchat": ["ℹ️"]
+  },
+  "100": {
+    "slack": ["100"],
+    "gchat": ["💯"]
+  },
+  "fire": {
+    "slack": ["fire"],
+    "gchat": ["🔥"]
+  },
+  "star": {
+    "slack": ["star"],
+    "gchat": ["⭐"]
+  },
+  "sparkles": {
+    "slack": ["sparkles"],
+    "gchat": ["✨"]
+  },
+  "lightning": {
+    "slack": ["zap"],
+    "gchat": ["⚡"]
+  },
+  "boom": {
+    "slack": ["boom"],
+    "gchat": ["💥"]
+  },
+  "eyes": {
+    "slack": ["eyes"],
+    "gchat": ["👀"],
+    "github": ["eyes"]
+  },
+  "green_circle": {
+    "slack": ["large_green_circle"],
+    "gchat": ["🟢"]
+  },
+  "yellow_circle": {
+    "slack": ["large_yellow_circle"],
+    "gchat": ["🟡"]
+  },
+  "red_circle": {
+    "slack": ["red_circle"],
+    "gchat": ["🔴"]
+  },
+  "blue_circle": {
+    "slack": ["large_blue_circle"],
+    "gchat": ["🔵"]
+  },
+  "white_circle": {
+    "slack": ["white_circle"],
+    "gchat": ["⚪"]
+  },
+  "black_circle": {
+    "slack": ["black_circle"],
+    "gchat": ["⚫"]
+  },
+  "rocket": {
+    "slack": ["rocket"],
+    "gchat": ["🚀"],
+    "github": ["rocket"]
+  },
+  "party": {
+    "slack": ["tada", "partying_face"],
+    "gchat": ["🎉", "🥳"],
+    "github": ["hooray"]
+  },
+  "confetti": {
+    "slack": ["confetti_ball"],
+    "gchat": ["🎊"],
+    "github": ["hooray"]
+  },
+  "balloon": {
+    "slack": ["balloon"],
+    "gchat": ["🎈"]
+  },
+  "gift": {
+    "slack": ["gift"],
+    "gchat": ["🎁"]
+  },
+  "trophy": {
+    "slack": ["trophy"],
+    "gchat": ["🏆"]
+  },
+  "medal": {
+    "slack": ["first_place_medal"],
+    "gchat": ["🥇"]
+  },
+  "lightbulb": {
+    "slack": ["bulb"],
+    "gchat": ["💡"]
+  },
+  "gear": {
+    "slack": ["gear"],
+    "gchat": ["⚙️"]
+  },
+  "wrench": {
+    "slack": ["wrench"],
+    "gchat": ["🔧"]
+  },
+  "hammer": {
+    "slack": ["hammer"],
+    "gchat": ["🔨"]
+  },
+  "bug": {
+    "slack": ["bug"],
+    "gchat": ["🐛"]
+  },
+  "link": {
+    "slack": ["link"],
+    "gchat": ["🔗"]
+  },
+  "lock": {
+    "slack": ["lock"],
+    "gchat": ["🔒"]
+  },
+  "unlock": {
+    "slack": ["unlock"],
+    "gchat": ["🔓"]
+  },
+  "key": {
+    "slack": ["key"],
+    "gchat": ["🔑"]
+  },
+  "pin": {
+    "slack": ["pushpin"],
+    "gchat": ["📌"]
+  },
+  "memo": {
+    "slack": ["memo"],
+    "gchat": ["📝"]
+  },
+  "clipboard": {
+    "slack": ["clipboard"],
+    "gchat": ["📋"]
+  },
+  "calendar": {
+    "slack": ["calendar"],
+    "gchat": ["📅"]
+  },
+  "clock": {
+    "slack": ["clock1"],
+    "gchat": ["🕐"]
+  },
+  "hourglass": {
+    "slack": ["hourglass"],
+    "gchat": ["⏳"]
+  },
+  "bell": {
+    "slack": ["bell"],
+    "gchat": ["🔔"]
+  },
+  "megaphone": {
+    "slack": ["mega"],
+    "gchat": ["📢"]
+  },
+  "speech_bubble": {
+    "slack": ["speech_balloon"],
+    "gchat": ["💬"]
+  },
+  "email": {
+    "slack": ["email"],
+    "gchat": ["📧"]
+  },
+  "inbox": {
+    "slack": ["inbox_tray"],
+    "gchat": ["📥"]
+  },
+  "outbox": {
+    "slack": ["outbox_tray"],
+    "gchat": ["📤"]
+  },
+  "package": {
+    "slack": ["package"],
+    "gchat": ["📦"]
+  },
+  "folder": {
+    "slack": ["file_folder"],
+    "gchat": ["📁"]
+  },
+  "file": {
+    "slack": ["page_facing_up"],
+    "gchat": ["📄"]
+  },
+  "chart_up": {
+    "slack": ["chart_with_upwards_trend"],
+    "gchat": ["📈"]
+  },
+  "chart_down": {
+    "slack": ["chart_with_downwards_trend"],
+    "gchat": ["📉"]
+  },
+  "coffee": {
+    "slack": ["coffee"],
+    "gchat": ["☕"]
+  },
+  "pizza": {
+    "slack": ["pizza"],
+    "gchat": ["🍕"]
+  },
+  "beer": {
+    "slack": ["beer"],
+    "gchat": ["🍺"]
+  },
+  "arrow_up": {
+    "slack": ["arrow_up"],
+    "gchat": ["⬆️"]
+  },
+  "arrow_down": {
+    "slack": ["arrow_down"],
+    "gchat": ["⬇️"]
+  },
+  "arrow_left": {
+    "slack": ["arrow_left"],
+    "gchat": ["⬅️"]
+  },
+  "arrow_right": {
+    "slack": ["arrow_right"],
+    "gchat": ["➡️"]
+  },
+  "refresh": {
+    "slack": ["arrows_counterclockwise"],
+    "gchat": ["🔄"]
+  },
+  "sun": {
+    "slack": ["sunny"],
+    "gchat": ["☀️"]
+  },
+  "cloud": {
+    "slack": ["cloud"],
+    "gchat": ["☁️"]
+  },
+  "rain": {
+    "slack": ["rain_cloud"],
+    "gchat": ["🌧️"]
+  },
+  "snow": {
+    "slack": ["snowflake"],
+    "gchat": ["❄️"]
+  },
+  "rainbow": {
+    "slack": ["rainbow"],
+    "gchat": ["🌈"]
+  }
+}

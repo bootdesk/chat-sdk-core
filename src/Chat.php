@@ -18,6 +18,7 @@ use BootDesk\ChatSDK\Core\Contracts\HandlesSlashCommands;
 use BootDesk\ChatSDK\Core\Contracts\HandlesStatuses;
 use BootDesk\ChatSDK\Core\Contracts\HeardMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\IdentityResolver;
+use BootDesk\ChatSDK\Core\Contracts\MustRehydrateAttachments;
 use BootDesk\ChatSDK\Core\Contracts\ReceivingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SendingMiddleware;
 use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
@@ -853,7 +854,7 @@ class Chat
     }
 
     /**
-     * @param  array<string>  $skippedMessages
+     * @param  Message[]  $skippedMessages
      */
     public function processMessageInJob(
         Adapter $adapter,
@@ -877,10 +878,22 @@ class Chat
     }
 
     /**
-     * @param  array<string>  $skippedMessages
+     * @param  Message[]  $skippedMessages
      */
     private function dispatchIncomingMessage(Adapter $adapter, string $threadId, Message $message, array $skippedMessages, int $totalSinceLastHandler): void
     {
+        // Rehydrate attachments if the adapter supports it (e.g., after queue deserialization)
+        if ($adapter instanceof MustRehydrateAttachments) {
+            $message = $this->rehydrateMessage($message, $adapter);
+
+            if ($skippedMessages !== []) {
+                $skippedMessages = array_map(
+                    fn (Message $m): Message => $this->rehydrateMessage($m, $adapter),
+                    $skippedMessages,
+                );
+            }
+        }
+
         // Conversation intercept
         $thread = new Thread($threadId, $this, $adapter, $this->state);
         if ($this->conversationManager->intercept($thread, $message)) {
@@ -936,6 +949,23 @@ class Chat
                 }
             }
         }
+    }
+
+    /**
+     * Rehydrate a message's attachments if the adapter supports it.
+     */
+    private function rehydrateMessage(Message $message, Adapter $adapter): Message
+    {
+        if (! ($adapter instanceof MustRehydrateAttachments) || $message->attachments === []) {
+            return $message;
+        }
+
+        return $message->replaceAttachments(
+            array_map(
+                fn (Attachment $a): Attachment => $adapter->rehydrateAttachment($a),
+                $message->attachments,
+            ),
+        );
     }
 
     public function handleWebhook(string $adapterName, ServerRequestInterface $request): ResponseInterface
@@ -1472,9 +1502,6 @@ class Chat
      */
     private function dispatchOptionsLoadHandlers(OptionsLoadEvent $event): ?array
     {
-        /**
-         * @var iterable<callable> $listeners
-         */
         $listeners = $this->listenerProvider->getListenersForEvent($event);
 
         foreach ($listeners as $listener) {

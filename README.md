@@ -285,6 +285,84 @@ Start a conversation:
 $chat->conversationManager->start(OrderConversation::class, $thread, $message);
 ```
 
+## Emoji Resolver
+
+Cross-platform emoji normalization for reactions and message placeholders.
+
+### EmojiValue
+
+Immutable singleton representing a normalized emoji name.
+
+```php
+use BootDesk\ChatSDK\Core\Support\EmojiValue;
+
+$e = EmojiValue::get('thumbs_up');
+$e->name;       // "thumbs_up"
+(string) $e;    // "{{emoji:thumbs_up}}"
+
+// Singleton — same name always returns same object
+EmojiValue::get('thumbs_up') === EmojiValue::get('thumbs_up'); // true
+```
+
+### EmojiResolver
+
+Converts between platform formats and normalized names.
+
+```php
+use BootDesk\ChatSDK\Core\Support\EmojiResolver;
+
+$resolver = new EmojiResolver;
+
+// Normalize incoming reactions
+$resolver->fromSlack('+1');       // "thumbs_up"
+$resolver->fromGChat('👍');       // "thumbs_up"
+$resolver->fromTeams('like');     // "thumbs_up"
+$resolver->fromGithub('+1');      // "thumbs_up"
+
+// Convert to platform format for outgoing reactions
+$resolver->toSlack('thumbs_up');   // "+1"
+$resolver->toGChat('thumbs_up');   // "👍"
+$resolver->toDiscord('thumbs_up'); // "👍"
+$resolver->toGithub('thumbs_up');  // "+1"
+
+// Match across formats
+$resolver->matches('+1', 'thumbs_up');  // true
+$resolver->matches('👍', 'thumbs_up');  // true
+```
+
+### Emoji Placeholders in Messages
+
+Use `{{emoji:name}}` in message text. They convert automatically to the correct platform format.
+
+```php
+EmojiResolver::convertPlaceholders(
+    'Great work! {{emoji:fire}} {{emoji:rocket}}',
+    'slack',
+);
+// Result: "Great work! :fire: :rocket:"
+
+EmojiResolver::convertPlaceholders(
+    'Great work! {{emoji:fire}} {{emoji:rocket}}',
+    'gchat',
+);
+// Result: "Great work! 🔥 🚀"
+```
+
+Adapters with `EmojiResolver` injection auto-convert placeholders in outgoing messages.
+
+### Reaction Events
+
+Reaction events provide both the normalized name and the raw platform string:
+
+```php
+$chat->onReaction(function (ReactionEvent $event) {
+    $event->emoji;      // Normalized: "thumbs_up"
+    $event->rawEmoji;   // Platform raw: "+1" (Slack) or "👍" (Telegram)
+});
+```
+
+See the [Emoji System guide](https://bootdesk.github.io/chat-sdk/guide/14-emoji.html) for the full emoji map and platform details.
+
 ## Middleware
 
 Six middleware interfaces for intercepting different stages:

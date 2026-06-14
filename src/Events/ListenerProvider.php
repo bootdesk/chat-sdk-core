@@ -11,6 +11,9 @@ final class ListenerProvider implements ListenerProviderInterface
     /** @var array<string, array<array{callable, int}>> */
     private array $listeners = [];
 
+    /**
+     * @return iterable<callable>
+     */
     public function getListenersForEvent(object $event): iterable
     {
         $class = $event::class;
