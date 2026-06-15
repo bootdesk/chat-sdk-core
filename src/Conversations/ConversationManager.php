@@ -2,7 +2,11 @@
 
 namespace BootDesk\ChatSDK\Core\Conversations;
 
+use BootDesk\ChatSDK\Core\ActionEvent;
+use BootDesk\ChatSDK\Core\Author;
 use BootDesk\ChatSDK\Core\Message;
+use BootDesk\ChatSDK\Core\ReactionEvent;
+use BootDesk\ChatSDK\Core\SlashCommandEvent;
 use BootDesk\ChatSDK\Core\Thread;
 use Psr\Log\LoggerInterface;
 
@@ -18,6 +22,9 @@ class ConversationManager
         $this->factory = $factory ?? fn (string $class): Conversation => new $class;
     }
 
+    /**
+     * Start a new conversation. Clears existing state and calls run() immediately.
+     */
     public function start(string $class, Thread $thread, Message $message): void
     {
         if (! is_subclass_of($class, Conversation::class)) {
@@ -27,9 +34,15 @@ class ConversationManager
         ConversationState::clear($thread);
 
         $conv = ($this->factory)($class);
-        $conv->start($thread, $message);
+        $conv->initialize($thread, $message);
+        $conv->run($thread, $message);
     }
 
+    /**
+     * Intercept an incoming message for an active conversation.
+     * Returns true if the message was consumed by the conversation,
+     * false if no active conversation exists.
+     */
     public function intercept(Thread $thread, Message $message): bool
     {
         $convState = ConversationState::get($thread);
@@ -54,34 +67,113 @@ class ConversationManager
             return false;
         }
 
-        if (isset($convState['_repeat'])) {
-            $repeat = $convState['_repeat'];
-            $repeat['attempts']++;
-            $convState['_repeat'] = $repeat;
-            ConversationState::save($thread, $convState);
+        $conv = ($this->factory)($class);
+        $conv->initialize($thread, $message);
 
-            if ($repeat['attempts'] >= $repeat['maxAttempts']) {
-                if ($repeat['onMaxReached'] !== null) {
-                    $conv = ($this->factory)($class);
-                    $conv->{$repeat['onMaxReached']}($thread, $message);
-                } else {
-                    ConversationState::clear($thread);
-                }
+        $depth = 0;
 
-                return true;
+        do {
+            $conv->resetSkip();
+            $conv->$step($thread, $message);
+
+            if ($conv->isSkipRequested()) {
+                $state = ConversationState::get($thread);
+                $step = $state['step'] ?? '';
+                $depth++;
+
+                continue;
             }
 
-            $thread->post($repeat['message']);
+            break;
+        } while ($depth < 10);
 
-            return true;
+        if ($depth >= 10) {
+            $this->logger?->warning('Conversation skip chain exceeded max depth', ['thread' => $thread->id]);
+            ConversationState::clear($thread);
         }
-
-        $conv = ($this->factory)($class);
-        $conv->$step($thread, $message);
 
         return true;
     }
 
+    /**
+     * Intercept an action event during an active conversation.
+     * Returns true if the conversation consumed the event.
+     */
+    public function interceptAction(Thread $thread, ActionEvent $action): bool
+    {
+        return $this->interceptEvent($thread, $action, 'onAction');
+    }
+
+    /**
+     * Intercept a slash command during an active conversation.
+     * Returns true if the conversation consumed the event.
+     */
+    public function interceptSlashCommand(Thread $thread, SlashCommandEvent $command): bool
+    {
+        return $this->interceptEvent($thread, $command, 'onSlashCommand');
+    }
+
+    /**
+     * Intercept a reaction during an active conversation.
+     * Returns true if the conversation consumed the event.
+     */
+    public function interceptReaction(Thread $thread, ReactionEvent $reaction): bool
+    {
+        return $this->interceptEvent($thread, $reaction, 'onReaction');
+    }
+
+    /**
+     * Generic non-message event intercept.
+     */
+    private function interceptEvent(Thread $thread, object $event, string $method): bool
+    {
+        $convState = ConversationState::get($thread);
+
+        if ($convState === [] || ! isset($convState['step'])) {
+            return false;
+        }
+
+        $class = $convState['class'];
+
+        if (! class_exists($class) || ! is_subclass_of($class, Conversation::class)) {
+            return false;
+        }
+
+        $conv = ($this->factory)($class);
+        $conv->initialize($thread, new Message(
+            id: '',
+            threadId: $thread->id,
+            author: new Author(id: ''),
+            text: '',
+            raw: null,
+        ));
+
+        $result = $conv->$method($thread, $event);
+
+        if ($result === true) {
+            return true;
+        }
+
+        // Not consumed by the conversation — route through message pipeline
+        // with a synthetic message so card button clicks work with ask()
+        if ($event instanceof ActionEvent) {
+            $synthetic = new Message(
+                id: 'action_'.$thread->id,
+                threadId: $thread->id,
+                author: new Author(id: $event->user->id),
+                text: $event->value ?? $event->actionId,
+                raw: $event->raw,
+            );
+
+            return $this->intercept($thread, $synthetic);
+        }
+
+        return false;
+    }
+
+    /**
+     * Clear any active conversation state for the given thread.
+     */
     public function clear(Thread $thread): void
     {
         ConversationState::clear($thread);

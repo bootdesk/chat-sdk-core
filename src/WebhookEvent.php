@@ -18,8 +18,10 @@ class WebhookEvent
 
     public const TYPE_MESSAGE_COST = 'message_cost';
 
+    public const TYPE_UNSUPPORTED = 'unsupported';
+
     /**
-     * @param  'message'|'action'|'reaction'|'status'|'slash_command'|'message_cost'  $type
+     * @param  'message'|'action'|'reaction'|'status'|'slash_command'|'message_cost'|'unsupported'  $type
      * @param  mixed  $payload  Message for TYPE_MESSAGE, array for all others
      */
     public function __construct(

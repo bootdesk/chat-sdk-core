@@ -1,0 +1,24 @@
+<?php
+
+namespace BootDesk\ChatSDK\Core\Tests\Conversations;
+
+use BootDesk\ChatSDK\Core\Conversations\Conversation;
+use BootDesk\ChatSDK\Core\Message;
+use BootDesk\ChatSDK\Core\Thread;
+
+class PauseParentConversation extends Conversation
+{
+    public array $log = [];
+
+    public function run(Thread $thread, Message $message): void
+    {
+        $this->log[] = 'parent-run';
+        $this->ask('Parent question?', 'pausePoint');
+    }
+
+    public function pausePoint(Thread $thread, Message $message): void
+    {
+        $this->log[] = 'pausePoint';
+        $this->pause(PauseChildConversation::class, $message);
+    }
+}

@@ -34,14 +34,30 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `Strategy` enum: `Drop`, `Queue`, `Debounce`, `Concurrent` — config key `concurrency` maps to these.
 - `RequiresSyncResponse` adapters always process inline (WebAdapter, DiscordAdapter). `RequiresAsyncResponse` adapters always defer to async (Slack, Telegram, Meta platforms). No marker = adaptive (inline when no contention, strategy on contention).
 - Deduplication via `StateAdapter::setIfNotExists` (300s TTL)
-- Event system: ReactionEvent, ActionEvent, SlashCommandEvent, ModalSubmitEvent, ModalCloseEvent, OptionsLoadEvent, AssistantThreadStartedEvent, AssistantContextChangedEvent, AppHomeOpenedEvent, MemberJoinedChannelEvent
+- Event system: ReactionEvent, ActionEvent, SlashCommandEvent, ModalSubmitEvent, ModalCloseEvent, OptionsLoadEvent, AssistantThreadStartedEvent, AssistantContextChangedEvent, AppHomeOpenedEvent, MemberJoinedChannelEvent, MessageCostEvent, UnsupportedOperationEvent
 - `ActionEvent` and `SlashCommandEvent` have `openModal(Modal $modal)` via `OpensModals` trait
 - `ReactionEvent` has `added: bool` and `rawEmoji: string` properties
 
 ## conversations
-- `Conversations/Conversation` — base class for multi-turn dialogs
-- `Conversations/ConversationManager` — intercept + lifecycle
-- `Conversations/AskResponse` — user reply value object
+- `Conversations/Conversation` — base class for multi-turn dialogs.
+  Entry: `abstract public function run(Thread, Message): void`.
+  Helpers (use `$this->thread`, no thread param): `ask(question, step, data)`,
+  `repeat(?message)` (re-post last question), `skip(step, message, ?data)`
+  (jump to step immediately), `say(text)`, `startConversation(class, message)`
+  (replace — no stack, calls run now), `pause(childClass, message)` (stack —
+  child runs now, end restores parent + replays last question), `end()`
+  (pop stack or clear).
+  Non-message intercepts: `onAction(Thread, ActionEvent): ?bool`,
+  `onSlashCommand(Thread, SlashCommandEvent): ?bool`,
+  `onReaction(Thread, ReactionEvent): ?bool`. Return true to consume,
+  null to fall through to normal event dispatch.
+- `Conversations/ConversationManager` — intercept + lifecycle.
+  `start(class, thread, message)` clears state, calls `$conv->run()`.
+  `intercept(thread, message)` calls stored step, loops for skip chains
+  (max depth 10). `interceptAction/Reaction/SlashCommand()` check active
+  conv before event dispatch.
+- `Conversations/ConversationState` — static helpers for state
+  read/write/clear under the `_conversation` key.
 
 ## cards
 - `Cards/Card` + Section, Button, Image, CardElement, ButtonStyle — cross-platform interactive messages
