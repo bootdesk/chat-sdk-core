@@ -487,6 +487,7 @@ class Chat
         string $rawEmoji = '',
         mixed $raw = null,
         ?string $originId = null,
+        ?ServerRequestInterface $request = null,
     ): void {
         $thread = new Thread($threadId, $this, $adapter, $this->state);
 
@@ -518,6 +519,7 @@ class Chat
         ?string $triggerId = null,
         mixed $raw = null,
         ?string $originId = null,
+        ?ServerRequestInterface $request = null,
     ): void {
         $thread = new Thread($threadId, $this, $adapter, $this->state);
 
@@ -541,7 +543,7 @@ class Chat
         // processMessage so ReceivingMiddleware, transcripts, etc. all run.
         $synthetic = $this->conversationManager->consumePendingSyntheticMessage();
         if ($synthetic instanceof Message) {
-            $this->processMessage($adapter, $threadId, $synthetic);
+            $this->processMessage($adapter, $threadId, $synthetic, $request);
 
             return;
         }
@@ -630,7 +632,7 @@ class Chat
         $this->dispatch($event);
     }
 
-    public function processSlashCommand(Adapter $adapter, string $channelId, string $command, string $text, ?Author $user = null, mixed $raw = null, ?string $triggerId = null): void
+    public function processSlashCommand(Adapter $adapter, string $channelId, string $command, string $text, ?Author $user = null, mixed $raw = null, ?string $triggerId = null, ?ServerRequestInterface $request = null): void
     {
         $user ??= new Author(id: '');
 
@@ -1050,6 +1052,7 @@ class Chat
                             triggerId: $actionData['triggerId'] ?? null,
                             raw: $actionData['raw'] ?? null,
                             originId: $actionData['originId'] ?? null,
+                            request: $request,
                         );
 
                         $ack = $adapter->acknowledgeAction($actionData['callbackQueryId'] ?? null);
@@ -1079,6 +1082,7 @@ class Chat
                             user: $user,
                             raw: $slashData['raw'] ?? null,
                             triggerId: $slashData['triggerId'] ?? null,
+                            request: $request,
                         );
 
                         return $this->webhookResponse($adapter);
@@ -1160,6 +1164,7 @@ class Chat
                             rawEmoji: $reactionData['rawEmoji'],
                             raw: $reactionData['raw'] ?? null,
                             originId: $reactionData['originId'] ?? null,
+                            request: $request,
                         );
 
                         return $this->webhookResponse($adapter);
@@ -1321,6 +1326,7 @@ class Chat
                 triggerId: $event->payload['triggerId'] ?? null,
                 raw: $event->payload['raw'] ?? null,
                 originId: $event->originId,
+                request: $request,
             ),
             WebhookEvent::TYPE_REACTION => $this->processReaction(
                 adapter: $adapter,
@@ -1332,6 +1338,7 @@ class Chat
                 rawEmoji: $event->payload['rawEmoji'],
                 raw: $event->payload['raw'] ?? null,
                 originId: $event->originId,
+                request: $request,
             ),
             WebhookEvent::TYPE_SLASH_COMMAND => $this->processSlashCommand(
                 adapter: $adapter,
@@ -1345,6 +1352,7 @@ class Chat
                 ),
                 raw: $event->payload['raw'] ?? null,
                 triggerId: $event->payload['triggerId'] ?? null,
+                request: $request,
             ),
             WebhookEvent::TYPE_STATUS => $this->dispatchStatusEvent($event),
             WebhookEvent::TYPE_MESSAGE_COST => $this->processMessageCost(
