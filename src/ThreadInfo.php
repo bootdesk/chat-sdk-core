@@ -11,5 +11,22 @@ class ThreadInfo
         public readonly string $channelId,
         public readonly ?string $title = null,
         public readonly ?int $messageCount = null,
+        public readonly ?string $topic = null,
+        public readonly ?string $iconCustomEmojiId = null,
+        public readonly ?bool $isArchived = null,
     ) {}
+
+    public function withParameters(array $overrides): self
+    {
+        return new self(...[
+            'id' => $this->id,
+            'channelId' => $this->channelId,
+            'title' => $this->title,
+            'messageCount' => $this->messageCount,
+            'topic' => $this->topic,
+            'iconCustomEmojiId' => $this->iconCustomEmojiId,
+            'isArchived' => $this->isArchived,
+            ...$overrides,
+        ]);
+    }
 }

@@ -23,10 +23,11 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `HandlesActions` / `HandlesSlashCommands` / `HandlesReactions` — optional adapter contracts for incoming events
 - `HandlesModals` / `HandlesOptionsLoad` / `HandlesSlackEvents` — optional adapter contracts for modals, external selects, Slack events
 - `SupportsModals` — optional adapter contract for opening modals from handlers
-- `SupportsEditMessages` / `SupportsDeleteMessages` — marker contracts for adapters that support editing/deleting messages (use `instanceof` instead of catching exceptions)
+- `SupportsEditMessages` / `SupportsDeleteMessages` / `SupportsEditThread` — marker contracts for adapters that support editing/deleting messages and threads (use `instanceof` instead of catching exceptions)
 - `AdapterHasMessagingWindow` — optional adapter contract for platforms with limited messaging windows (e.g., WhatsApp 24h)
 - `RequiresSyncResponse` / `RequiresAsyncResponse` — marker contracts declaring adapter's sync/async preference for concurrency handling
 - `MustRehydrateAttachments` — adapter contract for auto-rehydrating `Attachment::fetchData` after queue deserialization. `Chat::dispatchIncomingMessage()` checks this interface and calls `rehydrateAttachment()` on each attachment.
+- **CompositeInterfaces** (`src/Contracts/CompositeInterfaces/`): `HandlesInteractions` (extends Actions+Reactions+SlashCommands), `SupportsMessageMutability` (extends EditMessages+DeleteMessages+EditThread) — group common contracts for cleaner `implements` declarations
 
 ## architecture notes
 - Thread IDs are canonical: `"{adapter}:{platformChannelId}:{platformThreadId}"`
@@ -108,6 +109,13 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `FileUpload::fromFilename(string $path)` — factory that opens file, infers MIME via `mime_content_type()`
 - Adapters with native upload support (Slack, Telegram, Discord) handle `FileUpload` directly
 - Other adapters convert via `FileUploadConverter` (if registered) or throw `AdapterException`
+
+## threads
+- `ThreadInfo` — immutable value object with fields: `id`, `channelId`, `title`, `messageCount`, `topic`, `iconCustomEmojiId`, `isArchived`
+- `ThreadInfo::withParameters(array $overrides)` — returns new `ThreadInfo` with selected fields overridden (identity fields `id`/`channelId` preserved)
+- `SupportsEditThread` contract — adapter declares it can update threads via `editThread(string $threadId, ThreadInfo $threadInfo): ThreadInfo`
+- `Thread::update(ThreadInfo $threadInfo)` — convenience method, checks `instanceof SupportsEditThread` before calling adapter
+- `editThread` implementations (Telegram: `editForumTopic`/`setChatTitle`/`setChatDescription`/`closeForumTopic`/`reopenForumTopic`; Slack: `conversations.rename`/`setTopic`/`archive`/`unarchive`; Discord: PATCH `/channels/{id}`; GitHub: PATCH issue/PR title; Linear: GraphQL `issueUpdate`)
 
 ## markdown
 - `Markdown/` — CommonMark-based conversion pipeline for cross-platform formatting

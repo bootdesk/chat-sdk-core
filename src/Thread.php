@@ -6,6 +6,7 @@ namespace BootDesk\ChatSDK\Core;
 
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
+use BootDesk\ChatSDK\Core\Contracts\SupportsEditThread;
 
 class Thread
 {
@@ -115,6 +116,15 @@ class Thread
     {
         $key = "thread-state:{$this->id}";
         $this->state->set($key, $state, 30 * 24 * 60 * 60 * 1000);
+    }
+
+    public function update(ThreadInfo $threadInfo): ThreadInfo
+    {
+        if (! $this->adapter instanceof SupportsEditThread) {
+            throw new \RuntimeException('Adapter does not support editing threads');
+        }
+
+        return $this->adapter->editThread($this->id, $threadInfo);
     }
 
     public function fetchMessages(?FetchOptions $options = null): FetchResult
