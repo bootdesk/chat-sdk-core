@@ -536,6 +536,16 @@ class Chat
             return;
         }
 
+        // Action not consumed — check if conversation needs to fall through
+        // to message pipeline (onAction returned null). Routes through
+        // processMessage so ReceivingMiddleware, transcripts, etc. all run.
+        $synthetic = $this->conversationManager->consumePendingSyntheticMessage();
+        if ($synthetic instanceof Message) {
+            $this->processMessage($adapter, $threadId, $synthetic);
+
+            return;
+        }
+
         $this->dispatch($event);
     }
 
@@ -907,17 +917,17 @@ class Chat
             }
         }
 
-        // Conversation intercept
-        $thread = new Thread($threadId, $this, $adapter, $this->state);
-        if ($this->conversationManager->intercept($thread, $message)) {
-            return;
-        }
-
-        // Persist to transcripts
+        // Persist to transcripts — before conversation intercept so consumed messages are still logged
         $userKey = $this->resolveIdentity($message->author);
         if ($this->transcriptsApi instanceof TranscriptsApiContract && $userKey !== null) {
             $this->transcriptsApi->append($userKey, $message);
             $this->state->set("transcript_user:{$threadId}", $userKey, 86400_000);
+        }
+
+        // Conversation intercept
+        $thread = new Thread($threadId, $this, $adapter, $this->state);
+        if ($this->conversationManager->intercept($thread, $message)) {
+            return;
         }
 
         $context = new MessageContext(

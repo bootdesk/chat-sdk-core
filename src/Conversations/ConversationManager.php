@@ -15,11 +15,25 @@ class ConversationManager
     /** @var callable(string): Conversation */
     private $factory;
 
+    private ?Message $pendingSyntheticMessage = null;
+
     public function __construct(
         private readonly ?LoggerInterface $logger = null,
         ?callable $factory = null,
     ) {
         $this->factory = $factory ?? fn (string $class): Conversation => new $class;
+    }
+
+    /**
+     * Return a synthetic message from an action fallthrough, if one was stored
+     * during the last interceptAction call. Clears the stored message.
+     */
+    public function consumePendingSyntheticMessage(): ?Message
+    {
+        $msg = $this->pendingSyntheticMessage;
+        $this->pendingSyntheticMessage = null;
+
+        return $msg;
     }
 
     /**
@@ -154,18 +168,21 @@ class ConversationManager
             return true;
         }
 
-        // Not consumed by the conversation — route through message pipeline
-        // with a synthetic message so card button clicks work with ask()
+        // Not consumed by conversation — for action events, store a synthetic
+        // message so the caller can route it through the message pipeline.
+        // This lets card button clicks work with ask() while still running
+        // middlewares (ReceivingMiddleware, transcript, etc.).
         if ($event instanceof ActionEvent) {
-            $synthetic = new Message(
-                id: 'action_'.$thread->id,
+            $this->pendingSyntheticMessage = new Message(
+                id: 'action_'.uniqid(),
                 threadId: $thread->id,
                 author: new Author(id: $event->user->id),
-                text: $event->value ?? $event->actionId,
+                text: $event->triggerId ?? $event->actionId,
                 raw: $event->raw,
             );
 
-            return $this->intercept($thread, $synthetic);
+            $this->pendingSyntheticMessage->extras['action_value'] = $event->value;
+            $this->pendingSyntheticMessage->extras['action_id'] = $event->actionId;
         }
 
         return false;
