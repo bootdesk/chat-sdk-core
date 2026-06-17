@@ -26,6 +26,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `SupportsEditMessages` / `SupportsDeleteMessages` / `SupportsEditThread` — marker contracts for adapters that support editing/deleting messages and threads (use `instanceof` instead of catching exceptions)
 - `AdapterHasMessagingWindow` — optional adapter contract for platforms with limited messaging windows (e.g., WhatsApp 24h)
 - `RequiresSyncResponse` / `RequiresAsyncResponse` — marker contracts declaring adapter's sync/async preference for concurrency handling
+- `HasDynamicSyncPreference` — optional contract for adapters whose sync/async preference is runtime-dynamic (e.g., WebAdapter with `asyncMode`). ConcurrencyHandlers check this first, then fall back to marker interfaces. Method: `requiresSyncResponse(): bool`.
 - `MustRehydrateAttachments` — adapter contract for auto-rehydrating `Attachment::fetchData` after queue deserialization. `Chat::dispatchIncomingMessage()` checks this interface and calls `rehydrateAttachment()` on each attachment.
 - **CompositeInterfaces** (`src/Contracts/CompositeInterfaces/`): `HandlesInteractions` (extends Actions+Reactions+SlashCommands), `SupportsMessageMutability` (extends EditMessages+DeleteMessages+EditThread) — group common contracts for cleaner `implements` declarations
 
@@ -33,7 +34,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - Thread IDs are canonical: `"{adapter}:{platformChannelId}:{platformThreadId}"`
 - Concurrency: pluggable via `ConcurrencyHandler` interface + `Strategy` enum. `DefaultConcurrencyHandler` handles all 4 strategies (drop/queue/debounce/concurrent) synchronously with locks. Framework packages can replace with async implementations.
 - `Strategy` enum: `Drop`, `Queue`, `Debounce`, `Concurrent` — config key `concurrency` maps to these.
-- `RequiresSyncResponse` adapters always process inline (WebAdapter, DiscordAdapter). `RequiresAsyncResponse` adapters always defer to async (Slack, Telegram, Meta platforms). No marker = adaptive (inline when no contention, strategy on contention).
+- `RequiresSyncResponse` adapters always process inline (DiscordAdapter). `RequiresAsyncResponse` adapters always defer to async (Slack, Telegram, Meta platforms). `HasDynamicSyncPreference` adapters decide at runtime (WebAdapter depends on `asyncMode`). No marker = adaptive (inline when no contention, strategy on contention).
 - Deduplication via `StateAdapter::setIfNotExists` (300s TTL)
 - Event system: ReactionEvent, ActionEvent, SlashCommandEvent, ModalSubmitEvent, ModalCloseEvent, OptionsLoadEvent, AssistantThreadStartedEvent, AssistantContextChangedEvent, AppHomeOpenedEvent, MemberJoinedChannelEvent, MessageCostEvent, UnsupportedOperationEvent
 - `ActionEvent` and `SlashCommandEvent` have `openModal(Modal $modal)` via `OpensModals` trait

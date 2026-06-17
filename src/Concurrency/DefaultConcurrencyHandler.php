@@ -6,6 +6,7 @@ namespace BootDesk\ChatSDK\Core\Concurrency;
 
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\ConcurrencyHandler;
+use BootDesk\ChatSDK\Core\Contracts\HasDynamicSyncPreference;
 use BootDesk\ChatSDK\Core\Contracts\RequiresAsyncResponse;
 use BootDesk\ChatSDK\Core\Contracts\RequiresSyncResponse;
 use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
@@ -42,6 +43,19 @@ class DefaultConcurrencyHandler implements ConcurrencyHandler
             : $threadId;
 
         $handler = new Handler($this->state, $strategy);
+
+        // HasDynamicSyncPreference: ask adapter at runtime
+        if ($adapter instanceof HasDynamicSyncPreference) {
+            if ($adapter->requiresSyncResponse()) {
+                $this->processDrop($adapter, $threadId, $lockKey, $message, $handler, $processCallback);
+
+                return;
+            }
+
+            $this->applyStrategy($strategy, $adapter, $threadId, $lockKey, $message, $handler, $debounceMs, $maxConcurrent, $maxQueueSize, $processCallback);
+
+            return;
+        }
 
         // RequiresSyncResponse: always process inline with lock (drop if contention)
         if ($adapter instanceof RequiresSyncResponse) {
