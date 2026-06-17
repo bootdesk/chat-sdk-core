@@ -159,7 +159,6 @@ class ConversationManager
             threadId: $thread->id,
             author: new Author(id: ''),
             text: '',
-            raw: null,
         ));
 
         $result = $conv->$method($thread, $event);
