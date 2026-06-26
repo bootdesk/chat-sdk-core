@@ -6,6 +6,7 @@ use BootDesk\ChatSDK\Core\Cards\Card;
 use BootDesk\ChatSDK\Core\Chat;
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\SentMiddleware;
+use BootDesk\ChatSDK\Core\Events\OutgoingReactionEvent;
 use BootDesk\ChatSDK\Core\FetchOptions;
 use BootDesk\ChatSDK\Core\PostableMessage;
 use BootDesk\ChatSDK\Core\SentMessage;
@@ -186,5 +187,75 @@ class ThreadTest extends TestCase
         $sent = $this->thread->post('Hello');
 
         $this->assertStringStartsWith('modified-', $sent->id);
+    }
+
+    public function test_add_reaction_dispatches_event(): void
+    {
+        $dispatched = null;
+        $this->chat->listen(OutgoingReactionEvent::class, function (OutgoingReactionEvent $event) use (&$dispatched): void {
+            $dispatched = $event;
+        });
+
+        $this->thread->addReaction('msg-1', '👍');
+
+        $this->assertNotNull($dispatched);
+        $this->assertSame('msg-1', $dispatched->messageId);
+        $this->assertSame('👍', $dispatched->emoji);
+        $this->assertSame('mock:C123:1234', $dispatched->threadId);
+        $this->assertTrue($dispatched->added);
+    }
+
+    public function test_remove_reaction_dispatches_event(): void
+    {
+        $dispatched = null;
+        $this->chat->listen(OutgoingReactionEvent::class, function (OutgoingReactionEvent $event) use (&$dispatched): void {
+            $dispatched = $event;
+        });
+
+        $this->thread->removeReaction('msg-2', '👎');
+
+        $this->assertNotNull($dispatched);
+        $this->assertSame('msg-2', $dispatched->messageId);
+        $this->assertSame('👎', $dispatched->emoji);
+        $this->assertFalse($dispatched->added);
+    }
+
+    public function test_add_reaction_calls_adapter(): void
+    {
+        $this->thread->addReaction('msg-1', '👍');
+        $this->assertCount(1, $this->adapter->addReactionCalls);
+        $this->assertSame(['mock:C123:1234', 'msg-1', '👍'], $this->adapter->addReactionCalls[0]);
+    }
+
+    public function test_remove_reaction_calls_adapter(): void
+    {
+        $this->thread->removeReaction('msg-2', '👎');
+        $this->assertCount(1, $this->adapter->removeReactionCalls);
+        $this->assertSame(['mock:C123:1234', 'msg-2', '👎'], $this->adapter->removeReactionCalls[0]);
+    }
+
+    public function test_add_reaction_defaults_raw_emoji(): void
+    {
+        $dispatched = null;
+        $this->chat->listen(OutgoingReactionEvent::class, function (OutgoingReactionEvent $event) use (&$dispatched): void {
+            $dispatched = $event;
+        });
+
+        $this->thread->addReaction('msg-1', '👍');
+
+        $this->assertSame('👍', $dispatched->rawEmoji);
+    }
+
+    public function test_add_reaction_passes_raw_emoji(): void
+    {
+        $dispatched = null;
+        $this->chat->listen(OutgoingReactionEvent::class, function (OutgoingReactionEvent $event) use (&$dispatched): void {
+            $dispatched = $event;
+        });
+
+        $this->thread->addReaction('msg-1', '👍', ':thumbsup:');
+
+        $this->assertSame(':thumbsup:', $dispatched->rawEmoji);
+        $this->assertSame('👍', $dispatched->emoji);
     }
 }

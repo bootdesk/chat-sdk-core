@@ -24,6 +24,12 @@ class MockAdapter implements Adapter
     /** @var SentMessage[] */
     public array $sentMessages = [];
 
+    /** @var array<int, array{string, string, string}> */
+    public array $addReactionCalls = [];
+
+    /** @var array<int, array{string, string, string}> */
+    public array $removeReactionCalls = [];
+
     public ?Message $lastParsedMessage = null;
 
     public bool $initialized = false;
@@ -105,9 +111,15 @@ class MockAdapter implements Adapter
 
     public function deleteMessage(string $threadId, string $messageId): void {}
 
-    public function addReaction(string $threadId, string $messageId, string $emoji): void {}
+    public function addReaction(string $threadId, string $messageId, string $emoji): void
+    {
+        $this->addReactionCalls[] = [$threadId, $messageId, $emoji];
+    }
 
-    public function removeReaction(string $threadId, string $messageId, string $emoji): void {}
+    public function removeReaction(string $threadId, string $messageId, string $emoji): void
+    {
+        $this->removeReactionCalls[] = [$threadId, $messageId, $emoji];
+    }
 
     public function startTyping(string $threadId): void {}
 

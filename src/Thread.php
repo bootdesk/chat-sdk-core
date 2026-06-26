@@ -7,6 +7,7 @@ namespace BootDesk\ChatSDK\Core;
 use BootDesk\ChatSDK\Core\Contracts\Adapter;
 use BootDesk\ChatSDK\Core\Contracts\StateAdapter;
 use BootDesk\ChatSDK\Core\Contracts\SupportsEditThread;
+use BootDesk\ChatSDK\Core\Events\OutgoingReactionEvent;
 
 class Thread
 {
@@ -70,14 +71,28 @@ class Thread
         $this->adapter->startTyping($this->id);
     }
 
-    public function addReaction(string $messageId, string $emoji): void
+    public function addReaction(string $messageId, string $emoji, string $rawEmoji = ''): void
     {
         $this->adapter->addReaction($this->id, $messageId, $emoji);
+        $this->chat->dispatch(new OutgoingReactionEvent(
+            threadId: $this->id,
+            messageId: $messageId,
+            emoji: $emoji,
+            added: true,
+            rawEmoji: $rawEmoji ?: $emoji,
+        ));
     }
 
-    public function removeReaction(string $messageId, string $emoji): void
+    public function removeReaction(string $messageId, string $emoji, string $rawEmoji = ''): void
     {
         $this->adapter->removeReaction($this->id, $messageId, $emoji);
+        $this->chat->dispatch(new OutgoingReactionEvent(
+            threadId: $this->id,
+            messageId: $messageId,
+            emoji: $emoji,
+            added: false,
+            rawEmoji: $rawEmoji ?: $emoji,
+        ));
     }
 
     public function postEphemeral(string $userId, string|PostableMessage $message): void

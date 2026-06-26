@@ -1622,7 +1622,7 @@ class Chat
         );
     }
 
-    private function dispatch(object $event): object
+    public function dispatch(object $event): object
     {
         return $this->dispatcher->dispatch($event);
     }
