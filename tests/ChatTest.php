@@ -484,7 +484,7 @@ class ChatTest extends TestCase
 
     public function test_modal_submit_with_context_restores_channel(): void
     {
-        $channel = new Channel('C123', $this->adapter);
+        $channel = new Channel('mock:C123', $this->adapter);
         $this->chat->storeModalContext('mock', 'ctx_2', ['channel' => $channel]);
 
         $received = null;
@@ -502,7 +502,7 @@ class ChatTest extends TestCase
 
         $this->assertNotNull($received);
         $this->assertNotNull($received?->relatedChannel);
-        $this->assertSame('C123', $received?->relatedChannel->id);
+        $this->assertSame('mock:C123', $received?->relatedChannel->id);
     }
 
     public function test_process_options_load_returns_result(): void
@@ -1449,7 +1449,7 @@ class ChatTest extends TestCase
 
     public function test_process_modal_close_with_context(): void
     {
-        $channel = new Channel('C123', $this->adapter);
+        $channel = new Channel('mock:C123', $this->adapter);
         $this->chat->storeModalContext('mock', 'ctx_close', ['channel' => $channel]);
 
         $received = null;
@@ -1466,7 +1466,7 @@ class ChatTest extends TestCase
 
         $this->assertNotNull($received);
         $this->assertNotNull($received?->relatedChannel);
-        $this->assertSame('C123', $received?->relatedChannel->id);
+        $this->assertSame('mock:C123', $received?->relatedChannel->id);
     }
 
     public function test_dispatch_incoming_with_skip_in_dm(): void

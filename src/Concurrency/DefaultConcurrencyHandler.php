@@ -39,7 +39,7 @@ class DefaultConcurrencyHandler implements ConcurrencyHandler
         $lockScope = $this->config['lockScope'] ?? 'thread';
 
         $lockKey = $lockScope === 'channel'
-            ? $adapter->getName().':'.$adapter->channelIdFromThreadId($threadId)
+            ? $adapter->channelIdFromThreadId($threadId)
             : $threadId;
 
         $handler = new Handler($this->state, $strategy);

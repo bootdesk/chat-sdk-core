@@ -80,7 +80,9 @@ class MockBatchedAdapter implements Adapter, HandlesBatchedWebhooks
 
     public function channelIdFromThreadId(string $threadId): string
     {
-        return explode(':', $threadId, 2)[1] ?? '';
+        $parts = explode(':', $threadId, 3);
+
+        return $parts[0].':'.$parts[1];
     }
 
     public function postMessage(string $threadId, PostableMessage $message): SentMessage

@@ -83,7 +83,7 @@ class MockAdapter implements Adapter
     {
         $parts = explode(':', $threadId, 3);
 
-        return $parts[1] ?? '';
+        return $parts[0].':'.$parts[1];
     }
 
     public function postMessage(string $threadId, PostableMessage $message): SentMessage
