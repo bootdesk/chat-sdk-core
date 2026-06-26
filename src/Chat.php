@@ -457,14 +457,91 @@ class Chat
         return $this->state->getAndDeleteModalContext($adapterName, $contextId);
     }
 
-    public function openDM(string $adapterName, string $userId): ?string
+    public function openDM(string|Author $user): Thread
     {
-        $adapter = $this->resolveAdapter($adapterName);
-        if (! $adapter instanceof Adapter) {
-            return null;
+        $userId = $user instanceof Author ? $user->id : $user;
+
+        // Support "adapter:userId" format — explicit adapter prefix
+        if (str_contains($userId, ':')) {
+            $parts = explode(':', $userId, 2);
+            $adapter = $this->resolveAdapter($parts[0]);
+            if ($adapter instanceof Adapter) {
+                $threadId = $adapter->openDM($parts[1]);
+                if ($threadId === null) {
+                    throw new \RuntimeException(sprintf(
+                        'Adapter "%s" does not support opening DMs',
+                        $adapter->getName(),
+                    ));
+                }
+
+                return new Thread($threadId, $this, $adapter, $this->state);
+            }
         }
 
-        return $adapter->openDM($userId);
+        $candidates = $this->inferAdapterFromUserId($userId);
+
+        if ($candidates === []) {
+            throw new \RuntimeException(sprintf(
+                'Cannot infer adapter from userId "%s". Expected: Slack ("U..."), Teams ("29:..."), Google Chat ("users/..."), Linear (UUID), or Discord/Telegram/GitHub (numeric).',
+                $userId,
+            ));
+        }
+
+        foreach ($candidates as $adapterName) {
+            $adapter = $this->resolveAdapter($adapterName);
+            if (! $adapter instanceof Adapter) {
+                continue;
+            }
+
+            $threadId = $adapter->openDM($userId);
+            if ($threadId !== null) {
+                return new Thread($threadId, $this, $adapter, $this->state);
+            }
+        }
+
+        throw new \RuntimeException(sprintf(
+            'Cannot open DM for userId "%s". No matching adapter supports it.',
+            $userId,
+        ));
+    }
+
+    /**
+     * Infer candidate adapter names based on the userId format.
+     *
+     * @return string[]
+     */
+    private function inferAdapterFromUserId(string $userId): array
+    {
+        if (str_starts_with($userId, 'users/')) {
+            return ['gchat'];
+        }
+
+        if (str_starts_with($userId, '29:')) {
+            return ['teams'];
+        }
+
+        if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $userId)) {
+            return ['linear'];
+        }
+
+        if (preg_match('/^[UW][A-Z0-9]{6,}$/', $userId)) {
+            return ['slack'];
+        }
+
+        if (preg_match('/^\d+$/', $userId)) {
+            $candidates = [];
+
+            if (preg_match('/^\d{17,19}$/', $userId)) {
+                $candidates[] = 'discord';
+            }
+
+            $candidates[] = 'telegram';
+            $candidates[] = 'github';
+
+            return $candidates;
+        }
+
+        return [];
     }
 
     public function getUser(string $adapterName, string $userId): ?UserInfo

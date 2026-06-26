@@ -3,7 +3,8 @@
 Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 
 ## entrypoints
-- `Chat` — orchestrator (handleWebhook, processMessage, onNewMessage, onSlashCommand, etc.)
+
+- `Chat` — orchestrator (handleWebhook, openDM, processMessage, onNewMessage, onSlashCommand, etc.)
 - `Thread` — primary send/receive interface (post, edit, delete, fetchMessages, subscribe, startTyping)
 - `Channel` — channel-level operations
 - `Message` — immutable incoming message value object
@@ -11,6 +12,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `SentMessage` — result of posting with id/threadId/timestamp
 
 ## key contracts (src/Contracts/)
+
 - `Adapter` — implement for each platform (getName, verifyWebhook, parseWebhook, encodeThreadId, postMessage, etc.)
 - `StateAdapter` — pluggable state backend (locks, subscribe, queue, modal context, key-value)
 - `ConcurrencyHandler` — pluggable concurrency control. Default: `DefaultConcurrencyHandler` (sync strategies with locks/queues/usleep). `process()` accepts optional `?ServerRequestInterface $request` — framework packages serialize it for async job processing so `AdapterResolver` receives the original request even in queued context. Framework packages replace with async implementations (e.g., `QueueConcurrencyHandler` in Laravel).
@@ -31,6 +33,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - **CompositeInterfaces** (`src/Contracts/CompositeInterfaces/`): `HandlesInteractions` (extends Actions+Reactions+SlashCommands), `SupportsMessageMutability` (extends EditMessages+DeleteMessages+EditThread) — group common contracts for cleaner `implements` declarations
 
 ## architecture notes
+
 - Thread IDs are canonical: `"{adapter}:{platformChannelId}:{platformThreadId}"`
 - Concurrency: pluggable via `ConcurrencyHandler` interface + `Strategy` enum. `DefaultConcurrencyHandler` handles all 4 strategies (drop/queue/debounce/concurrent) synchronously with locks. Framework packages can replace with async implementations.
 - `Strategy` enum: `Drop`, `Queue`, `Debounce`, `Concurrent` — config key `concurrency` maps to these.
@@ -41,6 +44,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `ReactionEvent` has `added: bool` and `rawEmoji: string` properties
 
 ## conversations
+
 - `Conversations/Conversation` — base class for multi-turn dialogs.
   Entry: `abstract public function run(Thread, Message): void`.
   Helpers (use `$this->thread`, no thread param): `ask(question, step, data)`,
@@ -62,16 +66,19 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
   read/write/clear under the `_conversation` key.
 
 ## cards
+
 - `Cards/Card` + Section, Button, Image, CardElement, ButtonStyle — cross-platform interactive messages
 - Each adapter has a `XxxCards` class that converts to platform-native format
 
 ## modals
+
 - `Modals/Modal` — modal form builder with children (TextInput, Select, ExternalSelect, RadioSelect)
 - `Modals/TextInput`, `Modals/Select`, `Modals/ExternalSelect`, `Modals/RadioSelect`, `Modals/SelectOption`
 - Platform-agnostic value objects converted to platform-native via each adapter
 - Slack uses `SlackModalConverter` to convert to Block Kit views
 
 ## transcripts
+
 - `Contracts/TranscriptsApi` — interface for per-user message history
 - `Transcript/DefaultTranscriptsApi` — state-backed impl, stores entries with `direction: 'incoming'|'outgoing'`
 - `Transcript/TranscriptSentMiddleware` — auto-wired `SentMiddleware` that records outgoing bot replies
@@ -79,14 +86,17 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - Override by passing a `TranscriptsApi` instance directly to `Chat` constructor's `$transcripts` param
 
 ## concerns
+
 - `Concerns/OpensModals` — trait used by `ActionEvent` and `SlashCommandEvent` to expose `openModal(Modal $modal): ?array`
 
 ## support
+
 - `Support/AdapterRegistry` — static register(name, class) / get(name); populated by adapter register.php files
 - `Support/Arr` / `Support/Str` — polyfill helpers
 - `Support/NullFileUploadConverter` — default `FileUploadConverter` that throws `AdapterException`
 
 ## emoji
+
 - `data/emoji.json` — 94-entry emoji map with slack/gchat/github formats per normalized name
 - `Support/EmojiValue` — singleton immutable value object with `get(string): self`, `__toString()`, `toJson()`
 - `Support/EmojiResolver` — platform↔normalized conversion; loads from emoji.json at runtime
@@ -100,6 +110,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - Slack/Discord/Telegram/Messenger/WhatsApp/Instagram all accept optional `?EmojiResolver $emojiResolver = null` constructor param
 
 ## attachments
+
 - `Attachment` — URL-based media value object (type, url, name, mimeType, size, fetchData, fetchMetadata)
 - `Attachment::fetchData` — typed `(callable(Attachment): StreamInterface)|null` via PHPDoc. Constructor rejects non-null, non-callable values. Stores `[$adapter, 'fetchMedia']` pattern (no closures) for serialization safety.
 - `Attachment::read(): ?StreamInterface` — calls `($this->fetchData)($this)` if fetchData is set. Returns PSR-7 StreamInterface for reading attachment body.
@@ -112,6 +123,7 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - Other adapters convert via `FileUploadConverter` (if registered) or throw `AdapterException`
 
 ## threads
+
 - `ThreadInfo` — immutable value object with fields: `id`, `channelId`, `title`, `messageCount`, `topic`, `iconCustomEmojiId`, `isArchived`
 - `ThreadInfo::withParameters(array $overrides)` — returns new `ThreadInfo` with selected fields overridden (identity fields `id`/`channelId` preserved)
 - `SupportsEditThread` contract — adapter declares it can update threads via `editThread(string $threadId, ThreadInfo $threadInfo): ThreadInfo`
@@ -119,14 +131,17 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 - `editThread` implementations (Telegram: `editForumTopic`/`setChatTitle`/`setChatDescription`/`closeForumTopic`/`reopenForumTopic`; Slack: `conversations.rename`/`setTopic`/`archive`/`unarchive`; Discord: PATCH `/channels/{id}`; GitHub: PATCH issue/PR title; Linear: GraphQL `issueUpdate`)
 
 ## markdown
+
 - `Markdown/` — CommonMark-based conversion pipeline for cross-platform formatting
 
 ## testing
+
 - Tests use `MemoryStateAdapter` + `MockAdapter` from `tests/Helpers/`
 - `createTestMessage(text:, threadId:, author:, isMention:, isDM:)` helper in `tests/Helpers/functions.php`
 - Named phpunit suites: `Core` suite for this package
 
 ## constants
+
 - PHP 8.2+ (readonly properties, enums, match)
 - `declare(strict_types=1)` used in contracts and helpers (inconsistent in core classes)
 - PSR deps: http-client, http-message, http-factory, psr/log

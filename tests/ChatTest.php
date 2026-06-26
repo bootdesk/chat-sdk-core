@@ -639,13 +639,67 @@ class ChatTest extends TestCase
 
     public function test_open_dm_convenience(): void
     {
-        $dmThreadId = $this->chat->openDM('mock', 'U1');
-        $this->assertSame('mock:DM:U1', $dmThreadId);
+        $adapter = new MockAdapter;
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        $thread = $chat->openDM('U1234567');
+        $this->assertInstanceOf(Thread::class, $thread);
+        $this->assertSame('mock:DM:U1234567', $thread->id);
+        $this->assertSame($adapter, $thread->adapter);
     }
 
-    public function test_open_dm_unknown_adapter(): void
+    public function test_open_dm_with_author(): void
     {
-        $this->assertNull($this->chat->openDM('unknown', 'U1'));
+        $adapter = new MockAdapter;
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        $thread = $chat->openDM(new Author(id: 'U1234567'));
+        $this->assertInstanceOf(Thread::class, $thread);
+        $this->assertSame('mock:DM:U1234567', $thread->id);
+    }
+
+    public function test_open_dm_with_adapter_prefix(): void
+    {
+        $adapter = new MockAdapter;
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        $thread = $chat->openDM('slack:U1234567');
+        $this->assertInstanceOf(Thread::class, $thread);
+        $this->assertSame('mock:DM:U1234567', $thread->id);
+    }
+
+    public function test_open_dm_with_adapter_prefix_uses_full_after_colon(): void
+    {
+        $adapter = new MockAdapter;
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        // userId after colon may contain colons itself
+        $thread = $chat->openDM('slack:U123:extra');
+        $this->assertSame('mock:DM:U123:extra', $thread->id);
+    }
+
+    public function test_open_dm_throws_for_unknown_user_id_format(): void
+    {
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Cannot infer adapter from userId');
+        $this->chat->openDM('not-a-valid-user-id');
+    }
+
+    public function test_open_dm_falls_through_when_adapter_returns_null(): void
+    {
+        $adapter = $this->createMock(Adapter::class);
+        $adapter->method('openDM')->willReturn(null);
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('No matching adapter supports it');
+        $chat->openDM('U1234567');
+    }
+
+    public function test_open_dm_adapter_prefix_throws_when_adapter_returns_null(): void
+    {
+        $adapter = $this->createMock(Adapter::class);
+        $adapter->method('getName')->willReturn('slack');
+        $adapter->method('openDM')->willReturn(null);
+        $chat = new Chat($this->state, ['slack' => $adapter]);
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('does not support opening DMs');
+        $chat->openDM('slack:U1234567');
     }
 
     public function test_get_user_convenience(): void

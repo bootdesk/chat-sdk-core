@@ -56,7 +56,7 @@ class EmojiResolver
                 : [$formats['slack'] ?? ''];
 
             foreach ($slackFormats as $slack) {
-                $this->slackToNormalized[mb_strtolower($slack)] = $normalized;
+                $this->slackToNormalized[mb_strtolower($slack)] = (string) $normalized;
             }
 
             $gchatFormats = is_array($formats['gchat'] ?? null)
@@ -64,7 +64,7 @@ class EmojiResolver
                 : [$formats['gchat'] ?? ''];
 
             foreach ($gchatFormats as $gchat) {
-                $this->gchatToNormalized[$gchat] = $normalized;
+                $this->gchatToNormalized[$gchat] = (string) $normalized;
             }
 
             $githubFormats = is_array($formats['github'] ?? null)
@@ -72,7 +72,7 @@ class EmojiResolver
                 : [$formats['github'] ?? ''];
 
             foreach ($githubFormats as $github) {
-                $this->githubToNormalized[mb_strtolower($github)] = $normalized;
+                $this->githubToNormalized[mb_strtolower($github)] = (string) $normalized;
             }
         }
     }

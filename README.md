@@ -55,6 +55,31 @@ $thread->setState(['step' => 2]);
 $state = $thread->getState();
 ```
 
+## Direct Messages (DM)
+
+Open a DM with a user. Adapter is inferred from userId format or explicit `adapter:userId` prefix.
+
+```php
+// Infer adapter from userId format:
+$thread = $chat->openDM('U1234567');          // Slack (U prefix)
+$thread = $chat->openDM('users/12345');       // Google Chat
+$thread = $chat->openDM('29:base64string...');// Teams
+$thread = $chat->openDM('8f1f3c7e-d4e1-...');// Linear (UUID v4)
+$thread = $chat->openDM('1234567890');        // Discord/Telegram/GitHub (numeric)
+
+// Explicit adapter prefix:
+$thread = $chat->openDM('slack:U1234567');
+$thread = $chat->openDM('telegram:123456789');
+
+// Or pass an Author object:
+$author = new Author(id: 'U1234567');
+$thread = $chat->openDM($author);
+
+$thread->post('Hello in DM!');
+```
+
+Throws `RuntimeException` when adapter can't be inferred or doesn't support DMs.
+
 ## Cards
 
 Build rich, platform-adaptive message cards with text, tables, dividers, links, buttons, and more.

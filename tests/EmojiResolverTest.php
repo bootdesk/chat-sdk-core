@@ -64,6 +64,12 @@ class EmojiResolverTest extends TestCase
         $this->assertSame('rocket', $resolver->fromGChat('🚀'));
     }
 
+    public function test_from_gchat_100_returns_string(): void
+    {
+        $resolver = new EmojiResolver;
+        $this->assertSame('100', $resolver->fromGChat('💯'));
+    }
+
     public function test_from_gchat_handles_unicode_variants(): void
     {
         $resolver = new EmojiResolver;
