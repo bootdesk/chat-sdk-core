@@ -133,6 +133,12 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 ## markdown
 
 - `Markdown/` — CommonMark-based conversion pipeline for cross-platform formatting
+- `Markdown/BaseFormatConverter` — base class. `toAst()`/`fromAst()` cycle. `renderMarkdown()` uses `MarkdownRenderer` (node-renderer-dispatcher). `registerRenderers()` sets up GFM extensions + default renderers. Override in adapters to swap renderers for platform-specific output.
+- `Markdown/Renderer/MarkdownRenderer` — main renderer. Implements `ChildNodeRendererInterface` + `DocumentRendererInterface`. Dispatches each AST node to registered renderers by class. `renderNodes()` adds `\n\n` between `AbstractBlock` siblings.
+- `Markdown/Renderer/` — one file per node type (TextRenderer, StrongRenderer, EmphasisRenderer, etc.). Each implements `NodeRendererInterface`. Core provides 12 CommonMark + 3 GFM renderers.
+- `Markdown/Renderer/Meta/` — Meta platform renderers (`.`, `_`, `~`, plain link/image/heading, skip thematic break, `*`-bullet lists). Used by WhatsApp/Messenger/Instagram adapters via `registerRenderers()` override.
+- Platform-specific renderers live in adapter package (e.g., `adapter-telegram/src/Renderer/` for Telegram MarkdownV2 with char escaping).
+- `renderNodes()` adds `\n\n` separator between `AbstractBlock` children. Node renderers that need different joining (e.g., list items with `\n`) must iterate children directly.
 
 ## testing
 
