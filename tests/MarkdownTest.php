@@ -86,4 +86,97 @@ class MarkdownTest extends TestCase
         $this->assertStringContainsString('[x]', $result);
         $this->assertStringContainsString('[ ]', $result);
     }
+
+    public function test_render_as_gfm_from_string(): void
+    {
+        $result = $this->converter->renderAsGFM('Hello **world**');
+
+        $this->assertStringContainsString('**world**', $result);
+    }
+
+    public function test_render_as_gfm_from_ast(): void
+    {
+        $ast = $this->converter->toAst('Hello **world**');
+        $result = $this->converter->renderAsGFM($ast);
+
+        $this->assertStringContainsString('**world**', $result);
+    }
+
+    public function test_render_as_gfm_bold(): void
+    {
+        $result = $this->converter->renderAsGFM('**bold**');
+
+        $this->assertSame('**bold**', $result);
+    }
+
+    public function test_render_as_gfm_italic(): void
+    {
+        $result = $this->converter->renderAsGFM('*italic*');
+
+        $this->assertSame('*italic*', $result);
+    }
+
+    public function test_render_as_gfm_strikethrough(): void
+    {
+        $result = $this->converter->renderAsGFM('~~strike~~');
+
+        $this->assertSame('~~strike~~', $result);
+    }
+
+    public function test_render_as_gfm_link(): void
+    {
+        $result = $this->converter->renderAsGFM('[text](https://example.com)');
+
+        $this->assertStringContainsString('[text](https://example.com)', $result);
+    }
+
+    public function test_render_as_gfm_table(): void
+    {
+        $markdown = "| A | B |\n|---|---|\n| 1 | 2 |";
+        $result = $this->converter->renderAsGFM($markdown);
+
+        $this->assertStringContainsString('| A | B |', $result);
+        $this->assertStringContainsString('| 1 | 2 |', $result);
+    }
+
+    public function test_render_as_gfm_task_list(): void
+    {
+        $markdown = "- [x] done\n- [ ] todo";
+        $result = $this->converter->renderAsGFM($markdown);
+
+        $this->assertStringContainsString('[x]', $result);
+        $this->assertStringContainsString('[ ]', $result);
+    }
+
+    public function test_render_as_gfm_code_block(): void
+    {
+        $markdown = "```php\necho 'hi';\n```";
+        $result = $this->converter->renderAsGFM($markdown);
+
+        $this->assertStringContainsString('```php', $result);
+        $this->assertStringContainsString("echo 'hi'", $result);
+    }
+
+    public function test_render_as_gfm_heading(): void
+    {
+        $result = $this->converter->renderAsGFM('# Heading');
+
+        $this->assertStringContainsString('# Heading', $result);
+    }
+
+    public function test_render_as_gfm_unordered_list(): void
+    {
+        $result = $this->converter->renderAsGFM("- item1\n- item2");
+
+        $this->assertStringContainsString('- item1', $result);
+        $this->assertStringContainsString('- item2', $result);
+    }
+
+    public function test_render_as_gfm_ordered_list(): void
+    {
+        $result = $this->converter->renderAsGFM("1. one\n2. two");
+
+        $this->assertStringContainsString('1. one', $result);
+        $this->assertStringContainsString('2. two', $result);
+    }
 }

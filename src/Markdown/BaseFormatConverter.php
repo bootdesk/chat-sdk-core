@@ -63,6 +63,8 @@ abstract class BaseFormatConverter implements FormatConverter
 
     private MarkdownRenderer $renderer;
 
+    private MarkdownRenderer $gfmRenderer;
+
     public function __construct()
     {
         $this->environment = new Environment([
@@ -76,6 +78,17 @@ abstract class BaseFormatConverter implements FormatConverter
         $this->registerRenderers();
         $this->parser = new MarkdownParser($this->environment);
         $this->renderer = new MarkdownRenderer($this->environment);
+
+        $cmEnv = new Environment([
+            'html_input' => 'strip',
+            'allow_unsafe_links' => false,
+        ]);
+        $cmEnv->addExtension(new CommonMarkCoreExtension);
+        $cmEnv->addExtension(new StrikethroughExtension);
+        $cmEnv->addExtension(new TableExtension);
+        $cmEnv->addExtension(new TaskListExtension);
+        $this->registerCoreRenderers($cmEnv);
+        $this->gfmRenderer = new MarkdownRenderer($cmEnv);
     }
 
     abstract public function toAst(string $platformText): Document;
@@ -105,6 +118,20 @@ abstract class BaseFormatConverter implements FormatConverter
         return (string) $message->content;
     }
 
+    public function renderAsGFM(string|Document $input): string
+    {
+        if ($input instanceof Document) {
+            return $this->renderGFM($input);
+        }
+
+        return $this->renderGFM($this->toAst($input));
+    }
+
+    private function renderGFM(Document $ast): string
+    {
+        return trim($this->gfmRenderer->renderDocument($ast)->getContent());
+    }
+
     protected function parseMarkdown(string $markdown): Document
     {
         return $this->parser->parse($markdown);
@@ -117,27 +144,32 @@ abstract class BaseFormatConverter implements FormatConverter
 
     protected function registerRenderers(): void
     {
-        $this->addRenderer(Text::class, new TextRenderer);
-        $this->addRenderer(Strong::class, new StrongRenderer);
-        $this->addRenderer(Emphasis::class, new EmphasisRenderer);
-        $this->addRenderer(Strikethrough::class, new StrikethroughRenderer);
-        $this->addRenderer(Heading::class, new HeadingRenderer);
-        $this->addRenderer(Link::class, new LinkRenderer);
-        $this->addRenderer(Image::class, new ImageRenderer);
-        $this->addRenderer(Code::class, new CodeRenderer);
-        $this->addRenderer(FencedCode::class, new FencedCodeRenderer);
-        $this->addRenderer(IndentedCode::class, new IndentedCodeRenderer);
-        $this->addRenderer(ListBlock::class, new ListBlockRenderer);
-        $this->addRenderer(ListItem::class, new ListItemRenderer);
-        $this->addRenderer(Paragraph::class, new ParagraphRenderer);
-        $this->addRenderer(BlockQuote::class, new BlockQuoteRenderer);
-        $this->addRenderer(ThematicBreak::class, new ThematicBreakRenderer);
-        $this->addRenderer(Newline::class, new NewlineRenderer);
-        $this->addRenderer(Table::class, new TableRenderer);
-        $this->addRenderer(TableCell::class, new ParagraphRenderer);
-        $this->addRenderer(TableRow::class, new ParagraphRenderer);
-        $this->addRenderer(TableSection::class, new ParagraphRenderer);
-        $this->addRenderer(TaskListItemMarker::class, new TaskListItemMarkerRenderer);
+        $this->registerCoreRenderers($this->environment);
+    }
+
+    private function registerCoreRenderers(Environment $env): void
+    {
+        $env->addRenderer(Text::class, new TextRenderer);
+        $env->addRenderer(Strong::class, new StrongRenderer);
+        $env->addRenderer(Emphasis::class, new EmphasisRenderer);
+        $env->addRenderer(Strikethrough::class, new StrikethroughRenderer);
+        $env->addRenderer(Heading::class, new HeadingRenderer);
+        $env->addRenderer(Link::class, new LinkRenderer);
+        $env->addRenderer(Image::class, new ImageRenderer);
+        $env->addRenderer(Code::class, new CodeRenderer);
+        $env->addRenderer(FencedCode::class, new FencedCodeRenderer);
+        $env->addRenderer(IndentedCode::class, new IndentedCodeRenderer);
+        $env->addRenderer(ListBlock::class, new ListBlockRenderer);
+        $env->addRenderer(ListItem::class, new ListItemRenderer);
+        $env->addRenderer(Paragraph::class, new ParagraphRenderer);
+        $env->addRenderer(BlockQuote::class, new BlockQuoteRenderer);
+        $env->addRenderer(ThematicBreak::class, new ThematicBreakRenderer);
+        $env->addRenderer(Newline::class, new NewlineRenderer);
+        $env->addRenderer(Table::class, new TableRenderer);
+        $env->addRenderer(TableCell::class, new ParagraphRenderer);
+        $env->addRenderer(TableRow::class, new ParagraphRenderer);
+        $env->addRenderer(TableSection::class, new ParagraphRenderer);
+        $env->addRenderer(TaskListItemMarker::class, new TaskListItemMarkerRenderer);
     }
 
     protected function addRenderer(string $nodeClass, NodeRendererInterface $renderer, int $priority = 0): void

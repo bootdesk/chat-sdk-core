@@ -18,4 +18,6 @@ interface FormatConverter
     public function renderPostable(PostableMessage $message): string;
 
     public function fromMarkdown(string $markdown): string;
+
+    public function renderAsGFM(string|Document $input): string;
 }
