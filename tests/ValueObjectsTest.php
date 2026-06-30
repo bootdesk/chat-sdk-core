@@ -431,6 +431,47 @@ class ValueObjectsTest extends TestCase
         $this->assertSame('Photo', $att->name);
     }
 
+    public function test_attachment_location_factory(): void
+    {
+        $att = Attachment::location(37.7749, -122.4194, name: 'Golden Gate', address: 'San Francisco');
+
+        $this->assertSame('location', $att->type);
+        $this->assertSame(37.7749, $att->lat);
+        $this->assertSame(-122.4194, $att->lng);
+        $this->assertSame('Golden Gate', $att->name);
+        $this->assertSame('San Francisco', $att->address);
+        $this->assertStringStartsWith('data:application/geo+json;base64,', $att->url);
+        $this->assertTrue($att->isDataUrl());
+
+        $decoded = json_decode(base64_decode(substr($att->url, 33)), true);
+        $this->assertSame('Feature', $decoded['type']);
+        $this->assertSame('Point', $decoded['geometry']['type']);
+        $this->assertSame([-122.4194, 37.7749], $decoded['geometry']['coordinates']);
+        $this->assertSame('Golden Gate', $decoded['properties']['name']);
+        $this->assertSame('San Francisco', $decoded['properties']['address']);
+
+        $restored = unserialize(serialize($att));
+        $this->assertSame('location', $restored->type);
+        $this->assertSame(37.7749, $restored->lat);
+        $this->assertSame(-122.4194, $restored->lng);
+        $this->assertSame('Golden Gate', $restored->name);
+        $this->assertSame('San Francisco', $restored->address);
+
+        $bare = Attachment::location(51.5074, -0.1278);
+        $this->assertSame(51.5074, $bare->lat);
+        $this->assertSame(-0.1278, $bare->lng);
+        $this->assertNull($bare->name);
+        $this->assertNull($bare->address);
+
+        $normal = new Attachment(type: 'image', url: 'https://example.com/pic.jpg');
+        $this->assertFalse($normal->isDataUrl());
+
+        $stream = $att->read();
+        $this->assertNotNull($stream);
+        $this->assertSame('Feature', json_decode((string) $stream, true)['type']);
+        $this->assertNull($normal->read());
+    }
+
     public function test_attachment_with_fetch_options(): void
     {
         $att = new Attachment(type: 'image', url: 'https://example.com/photo.jpg', name: 'Photo', mimeType: 'image/jpeg', size: 1024, width: 100, height: 200, fetchMetadata: ['old' => 'meta']);

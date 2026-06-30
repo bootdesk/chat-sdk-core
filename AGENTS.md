@@ -111,12 +111,14 @@ Framework-agnostic PHP Chat SDK core. Namespace: `BootDesk\ChatSDK\Core`
 
 ## attachments
 
-- `Attachment` — URL-based media value object (type, url, name, mimeType, size, fetchData, fetchMetadata)
+- `Attachment` — URL-based media value object (type, url, name, mimeType, size, fetchData, fetchMetadata, lat, lng, address)
 - `Attachment::fetchData` — typed `(callable(Attachment): StreamInterface)|null` via PHPDoc. Constructor rejects non-null, non-callable values. Stores `[$adapter, 'fetchMedia']` pattern (no closures) for serialization safety.
-- `Attachment::read(): ?StreamInterface` — calls `($this->fetchData)($this)` if fetchData is set. Returns PSR-7 StreamInterface for reading attachment body.
-- `Attachment::withFetchOptions(callable $fetchData, ?array $fetchMetadata = null): self` — immutable helper that creates new Attachment with same type/url/name/mimeType/size/width/height but overridden fetchData/fetchMetadata. When fetchMetadata is null, preserves existing metadata from original.
-- `Attachment::__serialize()` — excludes `fetchData` (not serializable). Only `fetchMetadata` survives serialization.
-- `Attachment::__unserialize()` — restores props, sets `fetchData = null`. Adapter's `MustRehydrateAttachments::rehydrateAttachment()` restores it after deserialization.
+- `Attachment::read(): ?StreamInterface` — decodes `data:` URLs via `Nyholm\Psr7\Stream`; otherwise calls `($this->fetchData)($this)`. Returns PSR-7 StreamInterface.
+- `Attachment::isDataUrl(): bool` — returns true when `url` starts with `data:`
+- `Attachment::location(float $lat, float $lng, ?string $name = null, ?string $address = null): self` — factory that creates a `type: 'location'` attachment with GeoJSON data URL (`data:application/geo+json;base64,...`)
+- `Attachment::withFetchOptions(callable $fetchData, ?array $fetchMetadata = null): self` — immutable helper that creates new Attachment with same type/url/name/mimeType/size/width/height/lat/lng/address but overridden fetchData/fetchMetadata. When fetchMetadata is null, preserves existing metadata from original.
+- `Attachment::__serialize()` — excludes `fetchData` (not serializable). Includes `lat`, `lng`, `address`.
+- `Attachment::__unserialize()` — restores props, sets `fetchData = null` and `lat`/`lng`/`address` with null coalesce for backward compat. Adapter's `MustRehydrateAttachments::rehydrateAttachment()` restores fetchData after deserialization.
 - `FileUpload` — binary file upload value object (data, filename, mimeType); supports resource or string data
 - `FileUpload::fromFilename(string $path)` — factory that opens file, infers MIME via `mime_content_type()`
 - Adapters with native upload support (Slack, Telegram, Discord) handle `FileUpload` directly

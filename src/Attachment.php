@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BootDesk\ChatSDK\Core;
 
+use Nyholm\Psr7\Stream;
 use Psr\Http\Message\StreamInterface;
 
 class Attachment
@@ -21,6 +22,9 @@ class Attachment
         public readonly ?int $height = null,
         mixed $fetchData = null,
         public readonly ?array $fetchMetadata = null,
+        public readonly ?float $lat = null,
+        public readonly ?float $lng = null,
+        public readonly ?string $address = null,
     ) {
         if ($fetchData !== null && ! is_callable($fetchData)) {
             throw new \InvalidArgumentException('fetchData must be a callable or null');
@@ -29,8 +33,30 @@ class Attachment
         $this->fetchData = $fetchData;
     }
 
+    public function isDataUrl(): bool
+    {
+        return $this->url !== null && str_starts_with($this->url, 'data:');
+    }
+
     public function read(): ?StreamInterface
     {
+        if ($this->isDataUrl()) {
+            $comma = strpos($this->url, ',');
+            if ($comma === false) {
+                return null;
+            }
+            $encoded = substr($this->url, $comma + 1);
+            $decoded = base64_decode($encoded, true);
+            if ($decoded === false) {
+                return null;
+            }
+            $stream = fopen('php://temp', 'r+');
+            fwrite($stream, $decoded);
+            rewind($stream);
+
+            return new Stream($stream);
+        }
+
         if ($this->fetchData === null) {
             return null;
         }
@@ -51,6 +77,41 @@ class Attachment
             height: $this->height,
             fetchData: $fetchData,
             fetchMetadata: $fetchMetadata ?? $this->fetchMetadata,
+            lat: $this->lat,
+            lng: $this->lng,
+            address: $this->address,
+        );
+    }
+
+    public static function location(
+        float $lat,
+        float $lng,
+        ?string $name = null,
+        ?string $address = null,
+    ): self {
+        $geojson = [
+            'type' => 'Feature',
+            'geometry' => [
+                'type' => 'Point',
+                'coordinates' => [$lng, $lat],
+            ],
+        ];
+
+        if ($name !== null || $address !== null) {
+            $geojson['properties'] = array_filter([
+                'name' => $name,
+                'address' => $address,
+            ]);
+        }
+
+        return new self(
+            type: 'location',
+            url: 'data:application/geo+json;base64,'.base64_encode(json_encode($geojson)),
+            name: $name,
+            mimeType: 'application/geo+json',
+            lat: $lat,
+            lng: $lng,
+            address: $address,
         );
     }
 
@@ -65,6 +126,9 @@ class Attachment
             'width' => $this->width,
             'height' => $this->height,
             'fetchMetadata' => $this->fetchMetadata,
+            'lat' => $this->lat,
+            'lng' => $this->lng,
+            'address' => $this->address,
         ];
     }
 
@@ -78,17 +142,31 @@ class Attachment
         $this->width = $data['width'];
         $this->height = $data['height'];
         $this->fetchMetadata = $data['fetchMetadata'];
+        $this->lat = $data['lat'] ?? null;
+        $this->lng = $data['lng'] ?? null;
+        $this->address = $data['address'] ?? null;
         $this->fetchData = null;
     }
 
     public function toArray(): array
     {
-        return [
+        $result = [
             'type' => $this->type,
             'url' => $this->url,
             'name' => $this->name,
             'mime_type' => $this->mimeType,
             'size' => $this->size,
         ];
+
+        if ($this->lat !== null || $this->lng !== null) {
+            $result['lat'] = $this->lat;
+            $result['lng'] = $this->lng;
+        }
+
+        if ($this->address !== null) {
+            $result['address'] = $this->address;
+        }
+
+        return $result;
     }
 }
