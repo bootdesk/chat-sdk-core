@@ -41,6 +41,8 @@ use Money\Money;
 use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 class Chat
 {
@@ -74,6 +76,8 @@ class Chat
 
     private ConcurrencyHandler $concurrencyHandler;
 
+    private LoggerInterface $logger;
+
     /**
      * @param  array<string, Adapter>  $adapters
      * @param  array<string, mixed>  $config
@@ -89,13 +93,15 @@ class Chat
         null|array|TranscriptsApiContract $transcripts = null,
         ?BroadcastAdapter $broadcaster = null,
         ?ConcurrencyHandler $concurrencyHandler = null,
+        ?LoggerInterface $logger = null,
     ) {
         $this->adapters = $adapters;
         $this->adapterResolver = $adapterResolver;
         $this->responseFactory = $responseFactory;
         $this->broadcaster = $broadcaster;
+        $this->logger = $logger ?? $config['logger'] ?? new NullLogger;
         $this->conversationManager = new ConversationManager(
-            logger: $config['logger'] ?? null,
+            logger: $this->logger,
             factory: $config['conversation_factory'] ?? null,
         );
         $this->listenerProvider = new ListenerProvider;
@@ -936,8 +942,22 @@ class Chat
             return;
         }
 
-        $dedupeKey = "dedupe:{$adapter->getName()}:{$message->id}";
+        $adapterName = $adapter->getName();
+        $this->logger->info('[Chat] Processing message', [
+            'adapter' => $adapterName,
+            'threadId' => $threadId,
+            'messageId' => $message->id,
+            'text_preview' => mb_substr($message->text, 0, 100),
+        ]);
+
+        $dedupeKey = "dedupe:{$adapterName}:{$message->id}";
         if (! $this->state->setIfNotExists($dedupeKey, true, 300_000)) {
+            $this->logger->info('[Chat] Duplicate message dropped', [
+                'adapter' => $adapterName,
+                'threadId' => $threadId,
+                'messageId' => $message->id,
+            ]);
+
             return;
         }
 
@@ -1072,12 +1092,22 @@ class Chat
 
     public function handleWebhook(string $adapterName, ServerRequestInterface $request): ResponseInterface
     {
+        $this->logger->info('[Chat] Webhook received', [
+            'adapter' => $adapterName,
+            'method' => $request->getMethod(),
+            'uri' => (string) $request->getUri(),
+        ]);
+
         $adapter = $this->resolveAdapter(
             name: $adapterName,
             request: $request
         );
 
         if (! $adapter instanceof Adapter) {
+            $this->logger->error('[Chat] Adapter not configured', [
+                'adapter' => $adapterName,
+            ]);
+
             throw new ResourceNotFoundException("Adapter '{$adapterName}' is not configured.");
         }
 
@@ -1087,16 +1117,26 @@ class Chat
 
         return $this->middleware->processWebhook(
             request: $request,
-            handler: function (ServerRequestInterface $request) use ($adapter): ResponseInterface {
+            handler: function (ServerRequestInterface $request) use ($adapter, $adapterName): ResponseInterface {
                 $ack = $adapter->verifyWebhook($request);
 
                 if ($ack instanceof ResponseInterface) {
+                    $this->logger->info('[Chat] Webhook verification challenge returned', [
+                        'adapter' => $adapterName,
+                    ]);
+
                     return $ack;
                 }
+
+                $this->logger->debug('[Chat] Webhook verified', [
+                    'adapter' => $adapterName,
+                ]);
 
                 // Batched webhook processing — handles multiple events in one payload
                 // (Messenger, Instagram, WhatsApp batch entries for efficiency)
                 if ($adapter instanceof HandlesBatchedWebhooks) {
+                    $this->logger->info('[Chat] Handling batched webhook', ['adapter' => $adapterName]);
+
                     foreach ($adapter->parseBatchedWebhook($request) as $event) {
                         $eventAdapter = $this->middleware->processWebhookEvent(
                             $event,
@@ -1113,6 +1153,12 @@ class Chat
                 if ($adapter instanceof HandlesActions) {
                     $actionData = $adapter->parseAction($request);
                     if ($actionData !== null) {
+                        $this->logger->info('[Chat] Action handled', [
+                            'adapter' => $adapterName,
+                            'actionId' => $actionData['actionId'],
+                            'threadId' => $actionData['threadId'],
+                        ]);
+
                         $user = $actionData['author'] ?? new Author(
                             id: $actionData['userId'],
                             isMe: $actionData['isMe'],
@@ -1145,6 +1191,12 @@ class Chat
                 if ($adapter instanceof HandlesSlashCommands) {
                     $slashData = $adapter->parseSlashCommand($request);
                     if ($slashData !== null) {
+                        $this->logger->info('[Chat] Slash command handled', [
+                            'adapter' => $adapterName,
+                            'command' => $slashData['command'],
+                            'channelId' => $slashData['channelId'],
+                        ]);
+
                         $user = $slashData['author'] ?? new Author(
                             id: $slashData['userId'],
                             isMe: $slashData['isMe'],
@@ -1170,6 +1222,11 @@ class Chat
                 if ($adapter instanceof HandlesModals) {
                     $modalData = $adapter->parseModalSubmit($request);
                     if ($modalData !== null) {
+                        $this->logger->info('[Chat] Modal submit handled', [
+                            'adapter' => $adapterName,
+                            'callbackId' => $modalData['callbackId'],
+                        ]);
+
                         $this->processModalSubmit(
                             adapter: $adapter,
                             callbackId: $modalData['callbackId'],
@@ -1187,6 +1244,11 @@ class Chat
 
                     $modalData = $adapter->parseModalClose($request);
                     if ($modalData !== null) {
+                        $this->logger->info('[Chat] Modal close handled', [
+                            'adapter' => $adapterName,
+                            'callbackId' => $modalData['callbackId'],
+                        ]);
+
                         $this->processModalClose(
                             adapter: $adapter,
                             callbackId: $modalData['callbackId'],
@@ -1206,6 +1268,11 @@ class Chat
                 if ($adapter instanceof HandlesOptionsLoad) {
                     $optionsData = $adapter->parseOptionsLoad($request);
                     if ($optionsData !== null) {
+                        $this->logger->info('[Chat] Options load handled', [
+                            'adapter' => $adapterName,
+                            'actionId' => $optionsData['actionId'],
+                        ]);
+
                         $result = $this->processOptionsLoad(
                             adapter: $adapter,
                             actionId: $optionsData['actionId'],
@@ -1229,6 +1296,13 @@ class Chat
                 if ($adapter instanceof HandlesReactions) {
                     $reactionData = $adapter->parseReaction($request);
                     if ($reactionData !== null) {
+                        $this->logger->info('[Chat] Reaction handled', [
+                            'adapter' => $adapterName,
+                            'emoji' => $reactionData['emoji'],
+                            'threadId' => $reactionData['threadId'],
+                            'added' => $reactionData['added'],
+                        ]);
+
                         $this->processReaction(
                             adapter: $adapter,
                             threadId: $reactionData['threadId'],
@@ -1252,6 +1326,11 @@ class Chat
                 if ($adapter instanceof HandlesSlackEvents) {
                     $eventData = $adapter->parseAssistantThreadStarted($request);
                     if ($eventData !== null) {
+                        $this->logger->info('[Chat] Assistant thread started', [
+                            'adapter' => $adapterName,
+                            'threadId' => $eventData['threadId'],
+                        ]);
+
                         $this->processAssistantThreadStarted(
                             adapter: $adapter,
                             channelId: $eventData['channelId'],
@@ -1267,6 +1346,11 @@ class Chat
 
                     $eventData = $adapter->parseAssistantContextChanged($request);
                     if ($eventData !== null) {
+                        $this->logger->info('[Chat] Assistant context changed', [
+                            'adapter' => $adapterName,
+                            'threadId' => $eventData['threadId'],
+                        ]);
+
                         $this->processAssistantContextChanged(
                             adapter: $adapter,
                             channelId: $eventData['channelId'],
@@ -1282,6 +1366,10 @@ class Chat
 
                     $eventData = $adapter->parseAppHomeOpened($request);
                     if ($eventData !== null) {
+                        $this->logger->info('[Chat] App home opened', [
+                            'adapter' => $adapterName,
+                        ]);
+
                         $this->processAppHomeOpened(
                             adapter: $adapter,
                             channelId: $eventData['channelId'],
@@ -1294,6 +1382,10 @@ class Chat
 
                     $eventData = $adapter->parseMemberJoinedChannel($request);
                     if ($eventData !== null) {
+                        $this->logger->info('[Chat] Member joined channel', [
+                            'adapter' => $adapterName,
+                        ]);
+
                         $this->processMemberJoinedChannel(
                             adapter: $adapter,
                             channelId: $eventData['channelId'],
@@ -1310,6 +1402,12 @@ class Chat
                 if ($adapter instanceof HandlesMessageCosts) {
                     $costData = $adapter->parseMessageCost($request);
                     if ($costData !== null) {
+                        $this->logger->info('[Chat] Message cost event', [
+                            'adapter' => $adapterName,
+                            'threadId' => $costData['threadId'],
+                            'price' => $costData['price']?->getAmount(),
+                        ]);
+
                         $this->processMessageCost(
                             threadId: $costData['threadId'],
                             messageIds: $costData['messageIds'],
@@ -1325,6 +1423,12 @@ class Chat
                 if ($adapter instanceof HandlesStatuses) {
                     $statusData = $adapter->parseStatus($request);
                     if ($statusData !== null) {
+                        $this->logger->info('[Chat] Status event', [
+                            'adapter' => $adapterName,
+                            'type' => $statusData['type'],
+                            'threadId' => $statusData['threadId'],
+                        ]);
+
                         if ($statusData['type'] === 'delivered') {
                             $this->processMessageDelivered(
                                 threadId: $statusData['threadId'],
@@ -1358,6 +1462,10 @@ class Chat
                 try {
                     $message = $adapter->parseWebhook($request);
                 } catch (UnsupportedOperationException $e) {
+                    $this->logger->warning('[Chat] Unsupported webhook event', [
+                        'adapter' => $adapterName,
+                    ]);
+
                     try {
                         $request->getBody()->rewind();
                         $rawBody = (string) $request->getBody();
@@ -1372,6 +1480,13 @@ class Chat
 
                     return $this->webhookResponse($adapter);
                 }
+
+                $this->logger->info('[Chat] Message parsed from webhook', [
+                    'adapter' => $adapterName,
+                    'threadId' => $message->threadId,
+                    'messageId' => $message->id,
+                    'text_preview' => mb_substr($message->text, 0, 100),
+                ]);
 
                 $this->processMessage($adapter, $message->threadId, $message, $request);
 
